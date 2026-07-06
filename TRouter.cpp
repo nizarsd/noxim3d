@@ -329,8 +329,10 @@ if (TGlobalParams::selection_strategy==SEL_DP)
  {
    int Stime   = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
   // int cFlag = Stime%2;
-   int dst_id = (Stime%TGlobalParams::tcu_interval);     
+   //int dst_id = (Stime%TGlobalParams::tcu_interval);     
    int no_dst=TGlobalParams::mesh_dim_x*TGlobalParams::mesh_dim_y*TGlobalParams::mesh_dim_z; 
+  
+  int dst_id = (Stime%no_dst);     
    
   if (reset.read())
   {

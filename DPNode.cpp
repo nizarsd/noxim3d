@@ -4,13 +4,17 @@
 
 void DPNode::dpProcess()
 {
-	if (TGlobalParams::selection_strategy == SEL_DP)
-		{ 
+	// Gating for other selection methods
+	if (TGlobalParams::selection_strategy != SEL_DP)  return; 
+	
+	
 		int dp_time=2;
 		int stime   = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
 		int cFlag = (stime%dp_time) ;//&& (stime>=0);
+		// number of desinations (total no of nodes)
 		int no_dst=TGlobalParams::mesh_dim_x*TGlobalParams::mesh_dim_y*TGlobalParams::mesh_dim_z; 
-		dst_id =  stime%TGlobalParams::tcu_interval;   
+		//st_id =  stime%TGlobalParams::tcu_interval;   
+		dst_id = stime % no_dst;
 		int	 dp_cost [DIRECTIONS];
 		int idfrom=99, idto=0;
 //          if (local_id==10 && dst_id<no_dst)
@@ -92,7 +96,6 @@ void DPNode::dpProcess()
 		 
 	} // local id <> dest id
    } // dp_clock.posedge() && dst_id < no_dst
-  } // dp selection check
 } // process end 
 
 //---------------------------------------------------------------------------
@@ -133,7 +136,7 @@ case ROUTING_ODD_EVEN_3DNM:
 // 3 D Odd Even <Nizar>
 bool DPNode::can_turnOddEven(int dir_in, int dir_out, int dst_id)
 {
-  TCoord current  	= id2Coord(local_id);
+  TCoord current  		= id2Coord(local_id);
   TCoord destination 	= id2Coord(dst_id);
   int idfrom=189, idto=5;
   TCoord source 	= current;
