@@ -263,12 +263,14 @@ void parseCmdLine(int arg_num, char *arg_vet[])
 	else if (!strcmp(routing, "dwoddeven")) 
           TGlobalParams::routing_algorithm = ROUTING_DW_ODD_EVEN;
 	else if (!strcmp(routing, "oddevennm")) 
-          TGlobalParams::routing_algorithm = ROUTING_ODD_EVEN_3DNM;
-        else if (!strcmp(routing, "dyad")) 
-	  {
-	    TGlobalParams::routing_algorithm = ROUTING_DYAD;
-	    TGlobalParams::dyad_threshold = atof(arg_vet[++i]);
-	  }
+          TGlobalParams::routing_algorithm = ROUTING_ODD_EVEN_3DNM;	
+	else if (!strcmp(routing, "oddevenbalanced")) 
+          TGlobalParams::routing_algorithm = ROUTING_ODD_EVEN_BALANCED;
+	else if (!strcmp(routing, "dyad")) 
+	{
+		TGlobalParams::routing_algorithm = ROUTING_DYAD;
+		TGlobalParams::dyad_threshold = atof(arg_vet[++i]);
+	}
         else if (!strcmp(routing, "fullyadaptive")) 
 	  TGlobalParams::routing_algorithm = ROUTING_FULLY_ADAPTIVE;
         else if (!strcmp(routing, "table"))

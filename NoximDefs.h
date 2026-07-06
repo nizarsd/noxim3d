@@ -64,6 +64,7 @@ using namespace std;
 #define ROUTING_ODD_EVEN3D        12  //<Nizar>
 #define ROUTING_DW_ODD_EVEN       13  //<Nizar>
 #define ROUTING_ODD_EVEN_3DNM     14
+#define ROUTING_ODD_EVEN_BALANCED 15
 
 #define INVALID_ROUTING           -1
 

@@ -384,7 +384,13 @@ vector<int> TRouter::routingFunction(const TRouteData& route_data)
      if (TGlobalParams::mesh_dim_z == 1)
      	 return routingOddEven(position, src_coord, dst_coord);
      else
-     	return routingOddEven3D(route_data);
+     	return routingOddEven3D(route_data);    
+	
+	case ROUTING_ODD_EVEN_BALANCED:
+     if (TGlobalParams::mesh_dim_z == 1)
+     	return routingOddEven(position, src_coord, dst_coord);
+     else
+     	return routingOddEvenBalanced(route_data);
 	
     case ROUTING_DYAD:
       return routingDyAD(position, src_coord, dst_coord);
@@ -1517,6 +1523,8 @@ vector<int> TRouter::routingOddEvenNM(const TCoord& current,
   return directions;
 } 
 
+
+
 vector<int> TRouter::routingOddEvenNM0(const TCoord& current, 
 				    const TCoord& source, const TCoord& destination, const int dir_in)
 {
@@ -1814,6 +1822,90 @@ vector<int> TRouter::routingOddEven3DNM(const TRouteData& route_data)
 				directions=routingOddEvenNM(current, source, destination, dir_in);
 			else 
 				directions=routingOddEvenNM0(current, source, destination, dir_in);
+		}
+		
+		 directions.push_back(DIRECTION_DOWN);
+	  }
+    }
+
+return directions;  
+}
+
+
+// Balanced minimum odd even routing (for 3D NoCs only dz > 1)
+vector<int> TRouter::routingOddEvenBalanced(const TRouteData& route_data)
+{
+  TCoord current  	= id2Coord(route_data.current_id);
+  TCoord source 	= id2Coord(route_data.src_id);
+  TCoord destination 	= id2Coord(route_data.dst_id);
+  int dir_in = route_data.dir_in;
+
+   vector<int> directions;
+   int sz=source.z;
+   int cz=current.z;
+   int dz=destination.z;
+   
+   //int sx=source.x;
+   int cx=current.x;
+   int dx=destination.x;
+   
+   //int sy=source.y;
+   int cy=current.y;
+   int dy=destination.y;
+
+   int ex = dx-cx;
+   int ey = dy-cy;
+   int ez = dz-cz;
+   int dirz=cz-sz;   // to check if a packet is in a nonminimum z route
+   bool dwrange= true; // (dirz >=0 && dirz <1);
+
+/*// for flits moving in the z direction source xy is the xy of the xy plane enetry point 
+    if ((dir_in ==DIRECTION_UP) || (dir_in ==DIRECTION_DOWN))
+	{
+	source.x=current.x;
+	source.y=current.y;
+	}  // */
+
+  if (ez == 0)
+	{
+	if (cz%2==0) // for even z use the modified OE routing
+		directions=routingOddEven1(current, source, destination);
+	else // for odd use convensional OE routing
+		directions=routingOddEven0(current, source, destination);
+	// to move down: cz<dimz AND no reflection AND [either continuing to down OR this is even Z]	
+	if (cz < TGlobalParams::mesh_dim_z-1 && dir_in !=DIRECTION_DOWN)// && cz % 2 == 0 && dwrange )
+    		directions.push_back(DIRECTION_DOWN); 
+	}
+  else
+    {
+	if (ez < 0)   // z direction is -ve
+	{
+	    if ((ex==0) && (ey == 0))  // on the xy position 
+			directions.push_back(DIRECTION_UP);
+	    else
+	    {
+	      //if ( cz % 2 == 1 || cz == sz || dirz > 0)
+			if (cz%2==0) 
+				directions=routingOddEven1(current, source, destination);
+			else 
+				directions=routingOddEven0(current, source, destination);
+
+	      //if ( (dz % 2 == 1 || ez != -1)  && dir_in !=DIRECTION_UP && dirz < 0)
+	      //		directions.push_back(DIRECTION_UP);
+
+   	      if ((cz < TGlobalParams::mesh_dim_z-1) && dir_in !=DIRECTION_DOWN) //&&  cz % 2 == 0 && dwrange)
+    	      		directions.push_back(DIRECTION_DOWN); 
+
+	    }
+	}
+	  else   // ez > 0		
+	  {
+	        if ((ex!=0 || ey!=0))//&&  (cz % 2 == 0))  // need xy-plane routing and the z plane is even
+		{
+			if (cz%2==0) 
+				directions=routingOddEven1(current, source, destination);
+			else 
+				directions=routingOddEven0(current, source, destination);
 		}
 		
 		 directions.push_back(DIRECTION_DOWN);

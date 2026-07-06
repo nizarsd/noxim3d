@@ -154,6 +154,7 @@ SC_MODULE(TRouter)
   vector<int> routingNegativeFirst(const TCoord& current, const TCoord& destination);
   vector<int> routingNegativeFirst3D(const TCoord& current, const TCoord& destination);
   vector<int> routingOddEven(const TCoord& current, const TCoord& source, const TCoord& destination);
+  vector<int> routingBalancedOddEven(const TCoord& current, const TCoord& source, const TCoord& destination);
   vector<int> routingDyAD(const TCoord& current, const TCoord& source, const TCoord& destination);
   vector<int> routingLookAhead(const TCoord& current, const TCoord& destination);
   vector<int> routingFullyAdaptive(const TCoord& current, const TCoord& destination);
@@ -169,6 +170,7 @@ SC_MODULE(TRouter)
   vector<int> routingDwOddEven(const TRouteData& route_data);
   vector<int> routingOddEven3D(const TRouteData& route_data);
   vector<int> routingOddEven3DNM(const TRouteData& route_data);
+  vector<int> routingOddEvenBalanced(const TRouteData& route_data);
 
   vector<int>  directionsByBufferLevel(const vector<int>& directions);
 
