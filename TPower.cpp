@@ -58,6 +58,7 @@ TPower::TPower()
   else if (TGlobalParams::routing_algorithm == ROUTING_DW_XYZ) pwr_routing = PWR_ROUTING_XYZ;
   else if (TGlobalParams::routing_algorithm == ROUTING_DW_ODD_EVEN) pwr_routing = PWR_ROUTING_XYZ;
   else if (TGlobalParams::routing_algorithm == ROUTING_ODD_EVEN_3DNM) pwr_routing = PWR_ROUTING_XYZ;
+  else if (TGlobalParams::routing_algorithm == ROUTING_ODD_EVEN_BALANCED) pwr_routing = PWR_ROUTING_XYZ;
  
   else assert(false);
 
