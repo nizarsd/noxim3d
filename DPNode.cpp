@@ -28,10 +28,18 @@ void DPNode::dpProcess()
 		for (int d=0; d<DPSIZE; d++)
 			for (int i=0; i<DIRECTIONS; i++)
 				cost_mem[d][i] = BIG_VALUE;
+			
+		frozen_local_cost = 0;
+
+
 		return;
 	}
 
 	if (!dp_clock.posedge())  return;
+	
+	int PASS = dwell * no_dst;                 // dwell, no_dst already computed above
+	if (stime % PASS == 0)
+		frozen_local_cost = local_dp_cost.read();
 
 	// Destination node: cost anchor (0 to itself), every cycle of its dwell window.
 	if (local_id == dst_id)
@@ -50,7 +58,7 @@ void DPNode::dpProcess()
 	int rx_dp_cost[DIRECTIONS];
 	for (int i=0; i<DIRECTIONS; i++)
 		rx_dp_cost[i] = (dp_rx[i] >= BIG_VALUE) ? BIG_VALUE
-		              : (int)(dp_rx[i]*alpha) + local_dp_cost;
+		              : (int)(dp_rx[i]*alpha) + frozen_local_cost;
 
 	int sorted_ports[] = {0,1,2,3,4,5};
 	BubbleSort(rx_dp_cost, sorted_ports);       // ports ordered by ascending cost

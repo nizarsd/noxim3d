@@ -20,8 +20,9 @@ SC_MODULE(DPNode)
 
  // Registers
 
-  int                local_id, dst_id;                           // Unique ID
-  int  stime2;
+  int local_id, dst_id;               // Unique ID
+  int frozen_local_cost;   			  // to latch the cost to DP nodes once for every full convergence of DP
+  int stime2;
   int cost_mem[DPSIZE][DIRECTIONS];   // advertised cost per dst per input dir
  // Functions
 
@@ -53,7 +54,7 @@ SC_MODULE(DPNode)
     SC_METHOD(dpProcess);
      sensitive <<reset    <<dp_clock.pos();
 	 sensitive <<dp_rx[0] <<dp_rx[1] <<dp_rx[2] <<dp_rx[3] <<dp_rx[4] << dp_rx[5];
-	 sensitive <<local_dp_cost ; 
+	 // sensitive <<local_dp_cost ; 
 	 //used_buffer_size[0] <<used_buffer_size[1]<< used_buffer_size[2]<< used_buffer_size[3]<< used_buffer_size[4]<< used_buffer_size[5];
 
   }
