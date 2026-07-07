@@ -132,18 +132,18 @@ using namespace std;
 // Modifications made by Ra'ed April 2010
 #define BIG_VALUE				    1000000
 #define SMALL_VALUE				    0.2
-#define DEFAULT_NO_OF_SAMPLES			    10	
+#define DEFAULT_NO_OF_SAMPLES		10	
 #define DPSIZE					    260
-#define DEFAULT_TCU_INTERVAL			    500
-#define DEFAULT_BW_THRESHOLD			    1000
+#define DEFAULT_TCU_INTERVAL		500
+#define DEFAULT_BW_THRESHOLD		1000
 
 //<Nizar>
-#define DEFAULT_T_UPPER			            60.0
-#define DEFAULT_T_LOWER			            59.0
-#define T_AMBIENT 			            25.0
-#define FREQ                			    3e9  
+#define DEFAULT_T_UPPER			    60.0
+#define DEFAULT_T_LOWER			    59.0
+#define T_AMBIENT 			        25.0
+#define FREQ                		3e9  
 #define PIR_GRADUAL				    1
-#define PIR_NOT_GRADUAL				    0
+#define PIR_NOT_GRADUAL				0
 
 // TODO by Fafa - this MUST be removed!!!
 #define MAX_STATIC_DIM 10

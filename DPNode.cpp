@@ -49,20 +49,20 @@ void DPNode::dpProcess()
 	}
 
 	// phase 1 — RELAX: dp_rx coherently holds neighbours' stored costs for dst_id
-	int temp_dp [DIRECTIONS];
+	int rx_dp_cost [DIRECTIONS];
 	for (int i=0; i<DIRECTIONS; i++)
 		temp_dp[i] = (int)(dp_rx[i]*alpha) + local_dp_cost;
 
 	int sorted_ports[] = {0,1,2,3,4,5};
-	BubbleSort(temp_dp, sorted_ports);          // sort ports by their cost
+	BubbleSort(rx_dp_cost, sorted_ports);          // sort ports by their cost
 
 	int HIGH_COST = BIG_VALUE;
 	int dp_cost [DIRECTIONS] = {HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST};
 
 	for (int i=0; i<DIRECTIONS; i++)            // min cost to directions with legal turns
 		for (int j=0; j<DIRECTIONS; j++)
-			if (can_turn(j, sorted_ports[i], dst_id) && dp_cost[j] > temp_dp[sorted_ports[i]])
-				dp_cost[j] = temp_dp[sorted_ports[i]];
+			if (can_turn(j, sorted_ports[i], dst_id) && dp_cost[j] > rx_dp_cost[sorted_ports[i]])
+				dp_cost[j] = rx_dp_cost[sorted_ports[i]];
 
 	for (int i=0; i<DIRECTIONS; i++)
 	{
@@ -125,7 +125,7 @@ void DPNode::dpProcess()
 	 
 	 // else if (local_id != dst_id  && dst_id < no_dst)
 		// {
-		 // int temp_dp [DIRECTIONS]; 
+		 // int rx_dp_cost [DIRECTIONS]; 
 		 // int min      = BIG_VALUE;
 		 // int best_dir = NOT_VALID;
 		 // int best_dir2 =NOT_VALID;
@@ -136,11 +136,11 @@ void DPNode::dpProcess()
 					// cout<<" stime: "<< stime<<" can turn "<<i << " -> "<< j <<" from"<<local_id<< " to " <<dst_id<< " is " <<  can_turn(i,j, dst_id)<<endl;  // */
 
               	 // for(int i=0; i<DIRECTIONS; i++)   // find the minimum cost
-					// temp_dp[i] = (int)(dp_rx[i]*alpha) + local_dp_cost; //used_buffer_size[i];
+					// rx_dp_cost[i] = (int)(dp_rx[i]*alpha) + local_dp_cost; //used_buffer_size[i];
 
 		
 		// int sorted_ports[]={0,1,2,3,4,5};
-  		// BubbleSort(temp_dp, sorted_ports);  // sort ports by thier cost
+  		// BubbleSort(rx_dp_cost, sorted_ports);  // sort ports by thier cost
 
 		// int HIGH_COST=BIG_VALUE;  // cost to not possible turn directions 
 		// int dp_cost [DIRECTIONS]={HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST};     // the cost that will be propagated to each direction
@@ -148,8 +148,8 @@ void DPNode::dpProcess()
 		 // for(int i=0; i<DIRECTIONS; i++)  // send the min cost to directions with possible turns to current dst_id
 			// for (int j=0; j<DIRECTIONS; j++)
 			// {
-				// if (can_turn(j,sorted_ports[i], dst_id) && dp_cost[j] > temp_dp[sorted_ports[i]])   // this function is not dependent on dir_in !!
-				// dp_cost[j]=temp_dp[sorted_ports[i]];
+				// if (can_turn(j,sorted_ports[i], dst_id) && dp_cost[j] > rx_dp_cost[sorted_ports[i]])   // this function is not dependent on dir_in !!
+				// dp_cost[j]=rx_dp_cost[sorted_ports[i]];
 			// }
 			
                  

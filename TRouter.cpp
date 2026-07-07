@@ -325,8 +325,9 @@ void TRouter::bufferMonitor()
 
 void TRouter::routing_directionsUpdater()
 {
-if (TGlobalParams::selection_strategy==SEL_DP)
- {
+if (TGlobalParams::selection_strategy!=SEL_DP)
+	return;
+ 
    int stime   = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
   // int cFlag = Stime%2;
    //int dst_id = (Stime%TGlobalParams::tcu_interval);     
@@ -350,7 +351,7 @@ if (TGlobalParams::selection_strategy==SEL_DP)
    		}
    		//cout << endl;
   }
- }
+ 
 }
 
 //---------------------------------------------------------------------------
