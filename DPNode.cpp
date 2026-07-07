@@ -1090,22 +1090,47 @@ bool DPNode::can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id)
   }
 
   vector<int> directions;
+
+  int sz = source.z,      cz = current.z,  dz = destination.z;
   int ex = destination.x - current.x;
   int ey = destination.y - current.y;
-  int ez = destination.z - current.z;
-
-  if (ex != 0 || ey != 0)        // in-plane: plane-parity rule
+  int ez = dz - cz;
+  
+    if (ez == 0)
   {
-    if (current.z % 2 == 0)
+    // on destination plane: parity-split in-plane only
+    if (cz % 2 == 0)
       directions = routingOddEven0(current, source, destination); // row-wise
     else
       directions = routingOddEven1(current, source, destination); // column-wise
   }
-  if (ez > 0)                    // vertical: minimal step
-    directions.push_back(DIRECTION_DOWN);
-  else if (ez < 0)
-    directions.push_back(DIRECTION_UP);
-
+  else if (ez > 0)   // going down
+  {
+    if ((ex == 0) && (ey == 0))
+      directions.push_back(DIRECTION_DOWN);      // aligned: descend only
+    else
+    {
+      if ((cz % 2 == 1) || (cz == sz))           // in-plane on odd or source plane
+      {
+        if (cz % 2 == 0)
+          directions = routingOddEven0(current, source, destination);
+        else
+          directions = routingOddEven1(current, source, destination);
+      }
+      if ((dz % 2 == 1) || (ez != 1))            // descend under published condition
+        directions.push_back(DIRECTION_DOWN);
+    }
+  }
+  else               // ez < 0, going up
+  {
+    // exclusivity preserved from the published algorithm:
+    // unaligned + even plane -> in-plane ONLY; otherwise UP only
+    if ((ex != 0 || ey != 0) && (cz % 2 == 0))
+      directions = routingOddEven0(current, source, destination); // even plane: row-wise
+    else
+      directions.push_back(DIRECTION_UP);
+  }
+  
   for (unsigned int i = 0; i < directions.size(); i++)
     if (dir_out == directions[i])
       return true;

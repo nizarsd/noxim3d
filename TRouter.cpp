@@ -1823,35 +1823,66 @@ return directions;
 }
 
 
-// Balanced minimum odd-even routing (3D NoCs, dz > 1)
-// even plane -> row-wise odd-even, odd plane -> column-wise odd-even,
-// plus the minimal vertical step toward the destination plane.
+// Balanced odd-even routing for 3D NoC <Nizar>
+// In-plane: plane-parity rule — even plane row-wise (OE0), odd plane column-wise (OE1).
+// Vertical: gating identical to the published routingOddEven3D (j2/c2) — these
+// conditions are the inter-plane cycle-breaking rules; do not simplify them.
+// MUST stay in lockstep with DPNode::can_turnOddEvenBalanced.
 vector<int> TRouter::routingOddEvenBalanced(const TRouteData& route_data)
 {
-  TCoord current      = id2Coord(route_data.current_id);
-  TCoord source       = id2Coord(route_data.src_id);
-  TCoord destination  = id2Coord(route_data.dst_id);
+  TCoord current     = id2Coord(route_data.current_id);
+  TCoord source      = id2Coord(route_data.src_id);
+  TCoord destination = id2Coord(route_data.dst_id);
+  int dir_in = route_data.dir_in;
 
   vector<int> directions;
 
+  // flits arriving vertically: source xy becomes the plane entry point
+  if ((dir_in == DIRECTION_UP) || (dir_in == DIRECTION_DOWN))
+  {
+    source.x = current.x;
+    source.y = current.y;
+  }
+
+  int sz = source.z,      cz = current.z,  dz = destination.z;
   int ex = destination.x - current.x;
   int ey = destination.y - current.y;
-  int ez = destination.z - current.z;
+  int ez = dz - cz;
 
-  // In-plane: plane-parity rule (skip if already on the destination column & row)
-  if (ex != 0 || ey != 0)
+  if (ez == 0)
   {
-    if (current.z % 2 == 0)
+    // on destination plane: parity-split in-plane only
+    if (cz % 2 == 0)
       directions = routingOddEven0(current, source, destination); // row-wise
     else
       directions = routingOddEven1(current, source, destination); // column-wise
   }
-
-  // Vertical: minimal step toward destination plane (DOWN = +z, UP = -z)
-  if (ez > 0)
-    directions.push_back(DIRECTION_DOWN);
-  else if (ez < 0)
-    directions.push_back(DIRECTION_UP);
+  else if (ez > 0)   // going down
+  {
+    if ((ex == 0) && (ey == 0))
+      directions.push_back(DIRECTION_DOWN);      // aligned: descend only
+    else
+    {
+      if ((cz % 2 == 1) || (cz == sz))           // in-plane on odd or source plane
+      {
+        if (cz % 2 == 0)
+          directions = routingOddEven0(current, source, destination);
+        else
+          directions = routingOddEven1(current, source, destination);
+      }
+      if ((dz % 2 == 1) || (ez != 1))            // descend under published condition
+        directions.push_back(DIRECTION_DOWN);
+    }
+  }
+  else               // ez < 0, going up
+  {
+    // exclusivity preserved from the published algorithm:
+    // unaligned + even plane -> in-plane ONLY; otherwise UP only
+    if ((ex != 0 || ey != 0) && (cz % 2 == 0))
+      directions = routingOddEven0(current, source, destination); // even plane: row-wise
+    else
+      directions.push_back(DIRECTION_UP);
+  }
 
   assert(directions.size() > 0);
   return directions;
