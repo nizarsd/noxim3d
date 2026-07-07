@@ -125,8 +125,9 @@ SC_MODULE(TRouter)
     sensitive << clock.pos();
     
     SC_METHOD(routing_directionsUpdater);
-    sensitive << reset; // sensitive << clock.pos();
-    sensitive <<dp_dir[0] <<dp_dir[1] <<dp_dir[2] <<dp_dir[3] <<dp_dir[4] << dp_dir[5];
+    sensitive << reset; 
+	sensitive << clock.pos();
+    //sensitive <<dp_dir[0] <<dp_dir[1] <<dp_dir[2] <<dp_dir[3] <<dp_dir[4] << dp_dir[5];
   }
 
  private:

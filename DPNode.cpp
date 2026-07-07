@@ -10,9 +10,13 @@ void DPNode::dpProcess()
 	int stime  = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
 	int no_dst = TGlobalParams::mesh_dim_x*TGlobalParams::mesh_dim_y*TGlobalParams::mesh_dim_z;
 
-	// dwell = 2: phase 0 drives stored costs, phase 1 relaxes coherently
-	int phase = stime % 2;
-	dst_id    = (stime / 2) % no_dst;
+	// One destination held for `dwell` (>= mesh diameter) consecutive cycles so its
+	// cost field fully converges in place before advancing to the next destination.
+	int diameter = (TGlobalParams::mesh_dim_x - 1)
+	             + (TGlobalParams::mesh_dim_y - 1)
+	             + (TGlobalParams::mesh_dim_z - 1);
+	int dwell = diameter + 1;
+	dst_id    = (stime / dwell) % no_dst;
 
 	if (reset.read())
 	{
@@ -29,41 +33,34 @@ void DPNode::dpProcess()
 
 	if (!dp_clock.posedge())  return;
 
-	if (local_id == dst_id)          // destination node: cost anchor
+	// Destination node: cost anchor (0 to itself), every cycle of its dwell window.
+	if (local_id == dst_id)
 	{
 		for (int i=0; i<DIRECTIONS; i++)
 		{
-			dp_tx[i].write (0);      // both phases: advertise zero
+			dp_tx[i].write (0);
 			dp_dir[i].write(NOT_VALID);
 			cost_mem[dst_id][i] = 0;
 		}
 		return;
 	}
 
-	if (phase == 0)                  // DRIVE: put stored costs for dst_id on wires
-	{
-		for (int i=0; i<DIRECTIONS; i++)
-			dp_tx[i].write (cost_mem[dst_id][i]);
-		// dp_dir untouched — router latches only on phase 1
-		return;
-	}
-
-	// phase 1 — RELAX: dp_rx coherently holds neighbours' stored costs for dst_id
-	int rx_dp_cost [DIRECTIONS];
+	// RELAX (every cycle of the dwell): dp_rx holds neighbours' stored costs for
+	// this dst_id, coherent because all nodes hold the same dst_id for the window.
+	int rx_dp_cost[DIRECTIONS];
 	for (int i=0; i<DIRECTIONS; i++)
-		rx_dp_cost[i] = (int)(dp_rx[i]*alpha) + local_dp_cost;
+		rx_dp_cost[i] = (dp_rx[i] >= BIG_VALUE) ? BIG_VALUE
+		              : (int)(dp_rx[i]*alpha) + local_dp_cost;
 
 	int sorted_ports[] = {0,1,2,3,4,5};
-	BubbleSort(rx_dp_cost, sorted_ports);          // sort ports by their cost
+	BubbleSort(rx_dp_cost, sorted_ports);       // ports ordered by ascending cost
 
-	int HIGH_COST = BIG_VALUE;
-	int dp_cost [DIRECTIONS];
-	
-	// initialize to big cost 
-	for (int i=0; i<DIRECTIONS; i++)  
-		int dp_cost [i] = {BIG_VALUE};
+	int dp_cost[DIRECTIONS];
+	for (int i=0; i<DIRECTIONS; i++)
+		dp_cost[i] = BIG_VALUE;
 
-	for (int i=0; i<DIRECTIONS; i++)            // min cost to directions with legal turns
+	// Min cost per input direction j, over legal-turn output ports.
+	for (int i=0; i<DIRECTIONS; i++)
 		for (int j=0; j<DIRECTIONS; j++)
 			if (can_turn(j, sorted_ports[i], dst_id) && dp_cost[j] > rx_dp_cost[sorted_ports[i]])
 				dp_cost[j] = rx_dp_cost[sorted_ports[i]];
@@ -72,10 +69,9 @@ void DPNode::dpProcess()
 	{
 		dp_tx[i].write (dp_cost[i]);
 		dp_dir[i].write(sorted_ports[i]);
-		cost_mem[dst_id][i] = dp_cost[i];       // persist for next round
+		cost_mem[dst_id][i] = dp_cost[i];       // persist across cycles of the dwell
 	}
 }
-
 
 // void DPNode::dpProcess()
 // {

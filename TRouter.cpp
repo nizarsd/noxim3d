@@ -325,33 +325,26 @@ void TRouter::bufferMonitor()
 
 void TRouter::routing_directionsUpdater()
 {
-if (TGlobalParams::selection_strategy!=SEL_DP)
-	return;
- 
-   int stime   = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
-  // int cFlag = Stime%2;
-   //int dst_id = (Stime%TGlobalParams::tcu_interval);     
-   int no_dst=TGlobalParams::mesh_dim_x*TGlobalParams::mesh_dim_y*TGlobalParams::mesh_dim_z; 
-  
-	if (stime % 2 == 0) return;              // phase 0 = drive, nothing valid yet
-	int dst_id = (stime / 2) % no_dst; 
-   
-  if (reset.read())
-  {
-   for (int i=0; i<TGlobalParams::mesh_dim_z*TGlobalParams::mesh_dim_y*TGlobalParams::mesh_dim_x; i++)
-	 for(int j=0; j<DIRECTIONS; j++)
-	   	routing_directions[i][j] = -2;
-  }
-  else if (dst_id < no_dst) 
-  {
-  // cout << dst_id <<" : ";
-   for (int i=0; i<DIRECTIONS; i++)
-   		{ //cout << dp_dir[i] << "  " ;
-   		routing_directions[dst_id][i]=dp_dir[i];
-   		}
-   		//cout << endl;
-  }
- 
+	if (TGlobalParams::selection_strategy != SEL_DP) return;
+
+	int no_dst = TGlobalParams::mesh_dim_x*TGlobalParams::mesh_dim_y*TGlobalParams::mesh_dim_z;
+
+	if (reset.read())
+	{
+		for (int i=0; i<no_dst; i++)
+			for (int j=0; j<DIRECTIONS; j++)
+				routing_directions[i][j] = -2;
+		return;
+	}
+
+	int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
+	int diameter = (TGlobalParams::mesh_dim_x-1)+(TGlobalParams::mesh_dim_y-1)+(TGlobalParams::mesh_dim_z-1);
+	int dwell = diameter + 1;
+	if (stime % dwell != dwell - 1) return;      // latch once, at end of dwell window
+
+	int dst_id = (stime / dwell) % no_dst;       // always < no_dst; guard below now redundant
+	for (int i=0; i<DIRECTIONS; i++)
+		routing_directions[dst_id][i] = dp_dir[i];
 }
 
 //---------------------------------------------------------------------------
