@@ -209,7 +209,7 @@ case ROUTING_ODD_EVEN_BALANCED:
 
 }
 
-// 3 D Odd Even <Nizar>
+// 3D Odd Even <Nizar>
 bool DPNode::can_turnOddEven(int dir_in, int dir_out, int dst_id)
 {
   TCoord current  		= id2Coord(local_id);
