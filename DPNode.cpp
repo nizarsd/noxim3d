@@ -51,13 +51,17 @@ void DPNode::dpProcess()
 	// phase 1 — RELAX: dp_rx coherently holds neighbours' stored costs for dst_id
 	int rx_dp_cost [DIRECTIONS];
 	for (int i=0; i<DIRECTIONS; i++)
-		temp_dp[i] = (int)(dp_rx[i]*alpha) + local_dp_cost;
+		rx_dp_cost[i] = (int)(dp_rx[i]*alpha) + local_dp_cost;
 
 	int sorted_ports[] = {0,1,2,3,4,5};
 	BubbleSort(rx_dp_cost, sorted_ports);          // sort ports by their cost
 
 	int HIGH_COST = BIG_VALUE;
-	int dp_cost [DIRECTIONS] = {HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST};
+	int dp_cost [DIRECTIONS];
+	
+	// initialize to big cost 
+	for (int i=0; i<DIRECTIONS; i++)  
+		int dp_cost [i] = {BIG_VALUE};
 
 	for (int i=0; i<DIRECTIONS; i++)            // min cost to directions with legal turns
 		for (int j=0; j<DIRECTIONS; j++)

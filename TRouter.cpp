@@ -218,7 +218,7 @@ start_from_port++;
 		      else
 		      	flit.dw = 0;
 		      	
-		      traffic_counter++;
+		      //traffic_counter++;
 		      flit_tx[o].write(flit);
 		      current_level_tx[o] = 1 - current_level_tx[o];
 		      req_tx[o].write(current_level_tx[o]);
@@ -532,24 +532,22 @@ int TRouter::selectionNoP(const vector<int>& directions, const TRouteData& route
 
 int TRouter::selectionDP(const vector<int>& directions, const TRouteData& route_data)
 {
- vector<int>  best_dirs;
+  int dst = route_data.dst_id;
+  int best_available = NOT_VALID;
 
- //if ( (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME)< TGlobalParams::simulation_time)
- //    return directions[rand() % directions.size()]; 
- 
- //else
-   for (int j = 0; j<DIRECTIONS ; j++)     
-     for (unsigned int i=0; i<directions.size(); i++)
-    	 {
-    	   bool available = reservation_table.isAvailable(directions[i]);
-	   if  (available && directions[i] == routing_directions[route_data.dst_id][j])
-			 return(directions[i]);		
-			 best_dirs.push_back(directions[i]);
-    	 }
+  // walk DP rank order (j=0 is best); pick the best-ranked candidate that is free,
+  // else remember the best-ranked candidate regardless of availability
+  for (int j = 0; j < DIRECTIONS; j++)
+    for (unsigned int i = 0; i < directions.size(); i++)
+      if (directions[i] == routing_directions[dst][j]) {
+        if (reservation_table.isAvailable(directions[i]))
+          return directions[i];                 // best free DP direction
+        if (best_available == NOT_VALID)
+          best_available = directions[i];        // best DP direction (may be busy)
+      }
 
-//return selectionBufferLevel(best_dirs);		
-return best_dirs[0];		
-
+  if (best_available != NOT_VALID) return best_available;
+  return directions[0];                          // no DP match at all: fall back
 }
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
