@@ -68,7 +68,7 @@ SC_MODULE(TRouter)
  //sc_in <int>        dp_cost; 
    sc_in <int>        dp_dir[DIRECTIONS]; 
   // sc_out<int>      used_buffer_size[DIRECTIONS]; 
-   sc_out<int>        current_router_temp; 
+   sc_out<int>        local_dp_cost; 
 
   // Registers
 

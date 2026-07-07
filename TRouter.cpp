@@ -218,7 +218,7 @@ start_from_port++;
 		      else
 		      	flit.dw = 0;
 		      	
-		      //traffic_counter++;
+		      traffic_counter++;
 		      flit_tx[o].write(flit);
 		      current_level_tx[o] = 1 - current_level_tx[o];
 		      req_tx[o].write(current_level_tx[o]);
@@ -327,12 +327,13 @@ void TRouter::routing_directionsUpdater()
 {
 if (TGlobalParams::selection_strategy==SEL_DP)
  {
-   int Stime   = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
+   int stime   = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
   // int cFlag = Stime%2;
    //int dst_id = (Stime%TGlobalParams::tcu_interval);     
    int no_dst=TGlobalParams::mesh_dim_x*TGlobalParams::mesh_dim_y*TGlobalParams::mesh_dim_z; 
   
-  int dst_id = (Stime%no_dst);     
+	if (stime % 2 == 0) return;              // phase 0 = drive, nothing valid yet
+	int dst_id = (stime / 2) % no_dst; 
    
   if (reset.read())
   {
@@ -1208,32 +1209,20 @@ void TRouter::cost_to_go()
 	// cost function update   	
 	int stime = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
 
-if (TGlobalParams::selection_strategy == SEL_DP)
- {
+if (TGlobalParams::selection_strategy != SEL_DP)
+	return;
+ 
     	if (stime%TGlobalParams::tcu_interval == 0)
-	{		
-	float gamma = 1.0;
-	int w_temp = 100;
-         
-// with thermal aware DP 	
-//    	if (TGlobalParams::max_Temp > T_AMBIENT)
-//                  gamma = (router_temp-TGlobalParams::min_Temp)/(TGlobalParams::max_Temp-TGlobalParams::min_Temp);
-
-// With traffic aware DP
-	if (TGlobalParams::max_counter > 0)
-	gamma = (traffic_counter-TGlobalParams::min_counter)/(TGlobalParams::max_counter-TGlobalParams::min_counter);
-
-	int cost_temp = int (w_temp*gamma);
-
-
-	int dp_cost= (cost_temp);
-	current_router_temp.write(dp_cost);  
-	}
-	else if ((stime-1)%TGlobalParams::tcu_interval == 0)
-	{
-		traffic_counter=0;	 	
-	}
- }
+		{		
+			int dp_cost = min(100, (100 * traffic_counter) / (TGlobalParams::tcu_interval * 4));
+			// divisor: rough max flits/window through a router; tune the 4 (ports*util) once
+			local_dp_cost.write(dp_cost); 
+		}
+		else if ((stime-1)%TGlobalParams::tcu_interval == 0)
+		{
+			traffic_counter=0;	 	
+		}
+ 
         
 }
 

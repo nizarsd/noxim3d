@@ -5,98 +5,170 @@
 void DPNode::dpProcess()
 {
 	// Gating for other selection methods
-	if (TGlobalParams::selection_strategy != SEL_DP)  return; 
-	
-	
-		int dp_time=2;
-		int stime   = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
-		int cFlag = (stime%dp_time) ;//&& (stime>=0);
-		// number of desinations (total no of nodes)
-		int no_dst=TGlobalParams::mesh_dim_x*TGlobalParams::mesh_dim_y*TGlobalParams::mesh_dim_z; 
-		//st_id =  stime%TGlobalParams::tcu_interval;   
-		dst_id = stime % no_dst;
-		int	 dp_cost [DIRECTIONS];
-		int idfrom=99, idto=0;
-//          if (local_id==10 && dst_id<no_dst)
-//	           cout<<stime<<":"<<dst_id<<endl;
-	
-/*//   dst_id = (stime%no_dst);     ///<Nizar>
-     if (dst_id==idto && local_id==idfrom)
+	if (TGlobalParams::selection_strategy != SEL_DP)  return;
+
+	int stime  = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
+	int no_dst = TGlobalParams::mesh_dim_x*TGlobalParams::mesh_dim_y*TGlobalParams::mesh_dim_z;
+
+	// dwell = 2: phase 0 drives stored costs, phase 1 relaxes coherently
+	int phase = stime % 2;
+	dst_id    = (stime / 2) % no_dst;
+
+	if (reset.read())
 	{
-		cout<<" stime: "<< stime<< " local_id: "<<local_id <<endl; 
-		for(int i=0; i<DIRECTIONS; i++)
-			cout<< dp_rx[i]<<"  ";
+		for (int i=0; i<DIRECTIONS; i++)
+		{
+			dp_tx[i].write  (BIG_VALUE);
+			dp_dir[i].write (NOT_VALID);
+		}
+		for (int d=0; d<DPSIZE; d++)
+			for (int i=0; i<DIRECTIONS; i++)
+				cost_mem[d][i] = BIG_VALUE;
+		return;
+	}
+
+	if (!dp_clock.posedge())  return;
+
+	if (local_id == dst_id)          // destination node: cost anchor
+	{
+		for (int i=0; i<DIRECTIONS; i++)
+		{
+			dp_tx[i].write (0);      // both phases: advertise zero
+			dp_dir[i].write(NOT_VALID);
+			cost_mem[dst_id][i] = 0;
+		}
+		return;
+	}
+
+	if (phase == 0)                  // DRIVE: put stored costs for dst_id on wires
+	{
+		for (int i=0; i<DIRECTIONS; i++)
+			dp_tx[i].write (cost_mem[dst_id][i]);
+		// dp_dir untouched — router latches only on phase 1
+		return;
+	}
+
+	// phase 1 — RELAX: dp_rx coherently holds neighbours' stored costs for dst_id
+	int temp_dp [DIRECTIONS];
+	for (int i=0; i<DIRECTIONS; i++)
+		temp_dp[i] = (int)(dp_rx[i]*alpha) + local_dp_cost;
+
+	int sorted_ports[] = {0,1,2,3,4,5};
+	BubbleSort(temp_dp, sorted_ports);          // sort ports by their cost
+
+	int HIGH_COST = BIG_VALUE;
+	int dp_cost [DIRECTIONS] = {HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST};
+
+	for (int i=0; i<DIRECTIONS; i++)            // min cost to directions with legal turns
+		for (int j=0; j<DIRECTIONS; j++)
+			if (can_turn(j, sorted_ports[i], dst_id) && dp_cost[j] > temp_dp[sorted_ports[i]])
+				dp_cost[j] = temp_dp[sorted_ports[i]];
+
+	for (int i=0; i<DIRECTIONS; i++)
+	{
+		dp_tx[i].write (dp_cost[i]);
+		dp_dir[i].write(sorted_ports[i]);
+		cost_mem[dst_id][i] = dp_cost[i];       // persist for next round
+	}
+}
+
+
+// void DPNode::dpProcess()
+// {
+	// // Gating for other selection methods
+	// if (TGlobalParams::selection_strategy != SEL_DP)  return; 
+	
 		
-		cout<< endl;		
-	}// */
+		// //int dp_time=2;
+		// int stime   = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
+		// // int cFlag = (stime%dp_time) ;//&& (stime>=0);
+		// // number of desinations (total no of nodes)
+		// int no_dst=TGlobalParams::mesh_dim_x*TGlobalParams::mesh_dim_y*TGlobalParams::mesh_dim_z; 
+		// int dp_dwell= 1; //(TGlobalParams::mesh_dim_x + TGlobalParams::mesh_dim_y + TGlobalParams::mesh_dim_z);  // >= mesh diameter (dx-1 + dy-1 + dz-1)
+		// int dst_id = (stime / dp_dwell) % no_dst;
+
+		// int	 dp_cost [DIRECTIONS];
+		// int idfrom=99, idto=0;
+		// //          if (local_id==10 && dst_id<no_dst)
+		// //	           cout<<stime<<":"<<dst_id<<endl;
+
+		// /*//   dst_id = (stime%no_dst);     ///<Nizar>
+		// if (dst_id==idto && local_id==idfrom)
+		// {
+			// cout<<" stime: "<< stime<< " local_id: "<<local_id <<endl; 
+			// for(int i=0; i<DIRECTIONS; i++)
+			// cout<< dp_rx[i]<<"  ";
+
+			// cout<< endl;		
+		// }// */
        
 
-	  if (reset.read())
-	   {
-             for(int i=0; i<DIRECTIONS; i++) 
-		 {
-		   dp_tx[i].write   (BIG_VALUE);
-		   dp_dir[i].write  (NOT_VALID);
-		 }
-		}
-	 else if (dp_clock.posedge())
-	  {
-	   if (local_id ==  dst_id && dst_id < no_dst )  // if the current node is the destination node
-		{    
+	  // if (reset.read())
+	   // {
+             // for(int i=0; i<DIRECTIONS; i++) 
+		 // {
+		   // dp_tx[i].write   (BIG_VALUE);
+		   // dp_dir[i].write  (NOT_VALID);
+		 // }
+		// }
+	 // else if (dp_clock.posedge())
+	  // {
+	   // if (local_id ==  dst_id && dst_id < no_dst )  // if the current node is the destination node
+		// {    
 		
-		  for(int i=0; i<DIRECTIONS; i++)
-			{
-			 dp_tx[i].write (0); 
-			 dp_dir[i].write(NOT_VALID);
-			}
-		}
+		  // for(int i=0; i<DIRECTIONS; i++)
+			// {
+			 // dp_tx[i].write (0); 
+			 // dp_dir[i].write(NOT_VALID);
+			// }
+		// }
 	 
-	 else if (local_id != dst_id  && dst_id < no_dst)
-		{
-		 int temp_dp [DIRECTIONS]; 
-		 int min      = BIG_VALUE;
-		 int best_dir = NOT_VALID;
-		 int best_dir2 =NOT_VALID;
+	 // else if (local_id != dst_id  && dst_id < no_dst)
+		// {
+		 // int temp_dp [DIRECTIONS]; 
+		 // int min      = BIG_VALUE;
+		 // int best_dir = NOT_VALID;
+		 // int best_dir2 =NOT_VALID;
         
- /*               if (local_id == idfrom && dst_id==idto) 
-			 for(int j=0; j<DIRECTIONS; j++)  
-				 for(int i=0; i<DIRECTIONS; i++)  
-					cout<<" stime: "<< stime<<" can turn "<<i << " -> "<< j <<" from"<<local_id<< " to " <<dst_id<< " is " <<  can_turn(i,j, dst_id)<<endl;  // */
+ // /*               if (local_id == idfrom && dst_id==idto) 
+			 // for(int j=0; j<DIRECTIONS; j++)  
+				 // for(int i=0; i<DIRECTIONS; i++)  
+					// cout<<" stime: "<< stime<<" can turn "<<i << " -> "<< j <<" from"<<local_id<< " to " <<dst_id<< " is " <<  can_turn(i,j, dst_id)<<endl;  // */
 
-              	 for(int i=0; i<DIRECTIONS; i++)   // find the minimum cost
-					temp_dp[i] = (int)(dp_rx[i]*alpha) + current_router_temp; //used_buffer_size[i];
+              	 // for(int i=0; i<DIRECTIONS; i++)   // find the minimum cost
+					// temp_dp[i] = (int)(dp_rx[i]*alpha) + local_dp_cost; //used_buffer_size[i];
 
 		
-		int sorted_ports[]={0,1,2,3,4,5};
-  		BubbleSort(temp_dp, sorted_ports);  // sort ports by thier cost
+		// int sorted_ports[]={0,1,2,3,4,5};
+  		// BubbleSort(temp_dp, sorted_ports);  // sort ports by thier cost
 
-		int HIGH_COST=BIG_VALUE;  // cost to not possible turn directions 
-		int dp_cost [DIRECTIONS]={HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST};     // the cost that will be propagated to each direction
+		// int HIGH_COST=BIG_VALUE;  // cost to not possible turn directions 
+		// int dp_cost [DIRECTIONS]={HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST};     // the cost that will be propagated to each direction
 		
-		 for(int i=0; i<DIRECTIONS; i++)  // send the min cost to directions with possible turns to current dst_id
-			for (int j=0; j<DIRECTIONS; j++)
-			{
-				if (can_turn(j,sorted_ports[i], dst_id) && dp_cost[j] > temp_dp[sorted_ports[i]])   // this function is not dependent on dir_in !!
-				dp_cost[j]=temp_dp[sorted_ports[i]];
-			}
+		 // for(int i=0; i<DIRECTIONS; i++)  // send the min cost to directions with possible turns to current dst_id
+			// for (int j=0; j<DIRECTIONS; j++)
+			// {
+				// if (can_turn(j,sorted_ports[i], dst_id) && dp_cost[j] > temp_dp[sorted_ports[i]])   // this function is not dependent on dir_in !!
+				// dp_cost[j]=temp_dp[sorted_ports[i]];
+			// }
 			
                  
 
         
 
 
-			for(int i=0; i<DIRECTIONS; i++)
-			{
-				dp_tx[i].write (dp_cost [i]);   	
-				dp_dir[i].write(sorted_ports[i]);
-			}
+			// for(int i=0; i<DIRECTIONS; i++)
+			// {
+				// dp_tx[i].write (dp_cost [i]);   	
+				// dp_dir[i].write(sorted_ports[i]);
+			// }
 
 				 
 
 		 
-	} // local id <> dest id
-   } // dp_clock.posedge() && dst_id < no_dst
-} // process end 
+	// } // local id <> dest id
+   // } // dp_clock.posedge() && dst_id < no_dst
+// } // process end 
 
 //---------------------------------------------------------------------------
 
@@ -125,6 +197,10 @@ bool  DPNode::can_turn(int dir_in, int dir_out, int dst_id)
 case ROUTING_ODD_EVEN_3DNM: 
 	    return	can_turnOddEvenNM(dir_in, dir_out, dst_id);
 	    break;
+
+case ROUTING_ODD_EVEN_BALANCED:
+		return can_turnOddEvenBalanced(dir_in, dir_out, dst_id);
+		break;
   default:
 	return true;
 }
@@ -995,3 +1071,43 @@ return in_directions;
 }
 
 
+// Balanced minimum odd-even <Nizar>
+// MUST mirror TRouter::routingOddEvenBalanced exactly — change both together.
+bool DPNode::can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id)
+{
+  TCoord current     = id2Coord(local_id);
+  TCoord destination = id2Coord(dst_id);
+  TCoord source      = current;
+
+  switch (dir_in) {              // reconstruct one-hop-back source
+  case DIRECTION_NORTH: source.y -= 1; break;
+  case DIRECTION_EAST:  source.x += 1; break;
+  case DIRECTION_SOUTH: source.y += 1; break;
+  case DIRECTION_WEST:  source.x -= 1; break;
+  case DIRECTION_UP:    source.z += 1; break;
+  case DIRECTION_DOWN:  source.z -= 1; break;
+  default: assert(false);
+  }
+
+  vector<int> directions;
+  int ex = destination.x - current.x;
+  int ey = destination.y - current.y;
+  int ez = destination.z - current.z;
+
+  if (ex != 0 || ey != 0)        // in-plane: plane-parity rule
+  {
+    if (current.z % 2 == 0)
+      directions = routingOddEven0(current, source, destination); // row-wise
+    else
+      directions = routingOddEven1(current, source, destination); // column-wise
+  }
+  if (ez > 0)                    // vertical: minimal step
+    directions.push_back(DIRECTION_DOWN);
+  else if (ez < 0)
+    directions.push_back(DIRECTION_UP);
+
+  for (unsigned int i = 0; i < directions.size(); i++)
+    if (dir_out == directions[i])
+      return true;
+  return false;
+}
