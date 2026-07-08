@@ -196,6 +196,30 @@ struct TGlobalParams
 };
 
 
+// ---- DP control-sequence timing (single source of truth) --------------------
+// Keep dpProcess, cost_to_go, and routing_directionsUpdater in lockstep by
+// deriving all periods from these. Runtime values (mesh dims are CLI-set), so
+// these are inline functions, not #defines.
+
+inline int dp_no_dst()
+{
+    return TGlobalParams::mesh_dim_x
+         * TGlobalParams::mesh_dim_y
+         * TGlobalParams::mesh_dim_z;
+}
+
+inline int dp_diameter()
+{
+    return (TGlobalParams::mesh_dim_x - 1)
+         + (TGlobalParams::mesh_dim_y - 1)
+         + (TGlobalParams::mesh_dim_z - 1);
+}
+
+inline int dp_dwell()   { return dp_diameter() + 3; }              // cycles per destination
+inline int dp_pass()    { return dp_dwell() * dp_no_dst(); }        // full converge sweep
+inline int dp_settle()  { return dp_pass(); }                      // network-settle window (tune)
+inline int dp_cycle()   { return dp_pass() + dp_settle(); }        // full reconfiguration period
+
 //---------------------------------------------------------------------------
 // TCoord -- XYZ coordinates type of the Tile inside the Mesh
 class TCoord

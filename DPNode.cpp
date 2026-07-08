@@ -2,21 +2,32 @@
 #include <algorithm>
 #define alpha 1
 
+
 void DPNode::dpProcess()
 {
 	// Gating for other selection methods
 	if (TGlobalParams::selection_strategy != SEL_DP)  return;
+	
+
+
 
 	int stime  = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
-	int no_dst = TGlobalParams::mesh_dim_x*TGlobalParams::mesh_dim_y*TGlobalParams::mesh_dim_z;
 
+	
 	// One destination held for `dwell` (>= mesh diameter) consecutive cycles so its
 	// cost field fully converges in place before advancing to the next destination.
-	int diameter = (TGlobalParams::mesh_dim_x - 1)
-	             + (TGlobalParams::mesh_dim_y - 1)
-	             + (TGlobalParams::mesh_dim_z - 1);
-	int dwell = diameter + 1;
-	dst_id    = (stime / dwell) % no_dst;
+	// measure -> snapshot -> DP converge (config)-> settle for ss measurement 
+	int phase  = stime % dp_cycle();
+	if (phase >= dp_pass()) return;         // SETTLE phase: DP idle, network runs on new tables
+	
+	dst_id = (phase / dp_dwell()) % dp_no_dst(); // CONVERGE phase: relax as before
+
+	// snapshot cost at the START of each converge phase = END of previous settle,
+	// i.e. reflects congestion produced BY the new routing
+	if (phase == 0)
+	frozen_local_cost = local_dp_cost.read();
+
+	dst_id    = (stime / dp_dwell()) % dp_no_dst();
 
 	if (reset.read())
 	{
@@ -37,8 +48,7 @@ void DPNode::dpProcess()
 
 	if (!dp_clock.posedge())  return;
 	
-	int PASS = dwell * no_dst;                 // dwell, no_dst already computed above
-	if (stime % PASS == 0)
+	if (stime % dp_pass() == 0)
 		frozen_local_cost = local_dp_cost.read();
 
 	// Destination node: cost anchor (0 to itself), every cycle of its dwell window.
@@ -50,6 +60,13 @@ void DPNode::dpProcess()
 			dp_dir[i].write(NOT_VALID);
 			cost_mem[dst_id][i] = 0;
 		}
+		
+		#ifdef DP_DEBUG
+		if (dst_id == DP_WATCH_DST)
+			std::cout << "[DP] dst=" << dst_id << " step=" << (stime % dp_dwell())
+					  << " node=" << local_id << " ANCHOR mincost=0" << std::endl;
+		#endif
+		
 		return;
 	}
 
@@ -67,7 +84,7 @@ void DPNode::dpProcess()
 	for (int i=0; i<DIRECTIONS; i++)
 		dp_cost[i] = BIG_VALUE;
 
-	// Min cost per input direction j, over legal-turn output ports.
+	// Min cost per input direction j, over legal-turn output ports (i).
 	for (int i=0; i<DIRECTIONS; i++)
 		for (int j=0; j<DIRECTIONS; j++)
 			if (can_turn(j, sorted_ports[i], dst_id) && dp_cost[j] > rx_dp_cost[sorted_ports[i]])
@@ -79,6 +96,37 @@ void DPNode::dpProcess()
 		dp_dir[i].write(sorted_ports[i]);
 		cost_mem[dst_id][i] = dp_cost[i];       // persist across cycles of the dwell
 	}
+	
+// ---- DEBUG: convergence trace for one fixed destination ----------------
+// Compile with -DDP_DEBUG. Traces cost to DP_WATCH_DST only.
+#ifdef DP_DEBUG
+	if (dst_id == DP_WATCH_DST)
+	{
+		int mincost = BIG_VALUE;
+		for (int i=0; i<DIRECTIONS; i++)
+			if (dp_cost[i] < mincost) mincost = dp_cost[i];
+
+		int step = stime % dp_dwell();          // hop index within this dst's window
+		int nx = local_id % TGlobalParams::mesh_dim_x;
+		int ny = (local_id / TGlobalParams::mesh_dim_x) % TGlobalParams::mesh_dim_y;
+		int nz = local_id / (TGlobalParams::mesh_dim_x*TGlobalParams::mesh_dim_y);
+		std::cout << "[DP] dst=" << dst_id << " step=" << (stime % dp_dwell())
+				  << " node=" << local_id << "(" << nx << "," << ny << "," << nz << ")"
+				  << " mincost=" << (mincost>=BIG_VALUE ? -1 : mincost)
+				  << " frz=" << frozen_local_cost
+				  << " rx[";                                   
+				  for(int i=0;i<DIRECTIONS;i++) std::cout<<dp_rx[i].read()<<" ";
+				  std::cout << "]"                              
+				  << "  perdir[";
+	
+
+		for (int i=0; i<DIRECTIONS; i++)
+			std::cout << (dp_cost[i]>=BIG_VALUE ? -1 : dp_cost[i]) << (i<5?" ":"");
+		std::cout << "]" << std::endl;
+		
+	}
+#endif
+
 }
 
 // void DPNode::dpProcess()

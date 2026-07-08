@@ -1194,28 +1194,27 @@ bool TRouter::inCongestion()
 }
 
 //---------------------------------------------------------------------------
-// Update the cost function on the DP-unit -- added by Ra'ed , Modified by <Nizar>
-
+// Update the cost function on the DP-unit -- added by Ra'ed, Modified by <Nizar>
+// Three-phase control: measure ONLY during SETTLE (new tables fully in effect),
+// publish the cost at SETTLE end so dpProcess snapshots it at the next CONVERGE
+// start (phase==0). CONVERGE-phase traffic is discarded (routes still changing).
 void TRouter::cost_to_go()
 {
-	// cost function update   	
-	int stime = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
+	if (TGlobalParams::selection_strategy != SEL_DP)
+		return;
 
-if (TGlobalParams::selection_strategy != SEL_DP)
-	return;
- 
-    	if (stime%TGlobalParams::tcu_interval == 0)
-		{		
-			int dp_cost = min(100, (100 * traffic_counter) / (TGlobalParams::tcu_interval * 4));
-			// divisor: rough max flits/window through a router; tune the 4 (ports*util) once
-			local_dp_cost.write(dp_cost); 
-		}
-		else if ((stime-1)%TGlobalParams::tcu_interval == 0)
-		{
-			traffic_counter=0;	 	
-		}
- 
-        
+	int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
+	int phase = stime % dp_cycle();
+
+	if (phase == dp_pass())                 // SETTLE begins: reset, measure new-policy traffic cleanly
+	{
+		traffic_counter = 0;
+	}
+	else if (phase == dp_cycle() - 1)       // SETTLE ends: publish cost for the next CONVERGE snapshot
+	{
+		int dp_cost = (100 * traffic_counter) / (dp_settle() * 4);
+		local_dp_cost.write(dp_cost);
+	}
 }
 
 
