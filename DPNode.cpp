@@ -88,10 +88,15 @@ void DPNode::dpProcess()
 	for (int i=0; i<DIRECTIONS; i++)
 	{
 		dp_tx[i].write (dp_cost[i]);
-		dp_dir[i].write(sorted_ports[i]);
-		cost_mem[dst_id][i] = dp_cost[i];       // persist across cycles of the dwell
+		// invalidate ranks whose output-port cost is BIG_VALUE (turn-illegal / unreachable)
+		if (rx_dp_cost[sorted_ports[i]] >= BIG_VALUE)
+			dp_dir[i].write(NOT_VALID);
+		else
+			dp_dir[i].write(sorted_ports[i]);
+		
+		cost_mem[dst_id][i] = dp_cost[i];
 	}
-	
+		
 // ---- DEBUG: convergence trace for one fixed destination ----------------
 // Compile with -DDP_DEBUG. Traces cost to DP_WATCH_DST only.
 #ifdef DP_DEBUG

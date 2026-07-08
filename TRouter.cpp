@@ -344,6 +344,19 @@ void TRouter::routing_directionsUpdater()
 	int dst_id = (phase / dp_dwell()) % dp_no_dst();
 	for (int i=0; i<DIRECTIONS; i++)
 		routing_directions[dst_id][i] = dp_dir[i];
+	
+	#ifdef DP_DEBUG
+	if (dst_id == DP_WATCH_DST) {
+		std::cout << "[LATCH] t=" << stime
+		          << " phase=" << phase
+		          << " dwstep=" << (phase % dp_dwell())
+		          << " dst=" << dst_id << " node=" << local_id
+		          << " dirs[";
+		for (int i=0;i<DIRECTIONS;i++) std::cout << routing_directions[dst_id][i] << " ";
+		std::cout << "]" << std::endl;
+	}
+	#endif
+
 }
 
 //---------------------------------------------------------------------------
@@ -530,11 +543,11 @@ int TRouter::selectionDP(const vector<int>& directions, const TRouteData& route_
   // walk DP rank order (j=0 is best); pick the best-ranked candidate that is free,
   // else remember the best-ranked candidate regardless of availability
   for (int j = 0; j < DIRECTIONS; j++)
-    for (unsigned int i = 0; i < directions.size(); i++)
+    for ( int i = 0; i < directions.size(); i++)
       if (directions[i] == routing_directions[dst][j]) {
         if (reservation_table.isAvailable(directions[i]))
-          return directions[i];                 // best free DP direction
-        if (best_available == NOT_VALID)
+          return directions[i];                 // exit with best free DP direction first
+        if (best_available == NOT_VALID)		// 
           best_available = directions[i];        // best DP direction (may be busy)
       }
 
