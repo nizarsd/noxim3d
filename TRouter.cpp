@@ -338,9 +338,8 @@ void TRouter::routing_directionsUpdater()
 	}
 
 	int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
-	int diameter = (TGlobalParams::mesh_dim_x-1)+(TGlobalParams::mesh_dim_y-1)+(TGlobalParams::mesh_dim_z-1);
-	int dwell = diameter + 1;
-	if (stime % dwell != dwell - 1) return;      // latch once, at end of dwell window
+	int dwell = dp_dwell();
+	if (stime % dwell != dwell-1) return;      // latch once, at end of dwell window
 
 	int dst_id = (stime / dwell) % no_dst;       // always < no_dst; guard below now redundant
 	for (int i=0; i<DIRECTIONS; i++)

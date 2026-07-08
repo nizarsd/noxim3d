@@ -33,6 +33,9 @@
 #include <vector>
 
 using namespace std;
+// DEBUG DP 
+#define DP_DEBUG
+#define DP_WATCH_DST 0
 
 // Define the directions as numbers
 #define DIRECTIONS             6
