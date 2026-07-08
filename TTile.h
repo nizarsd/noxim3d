@@ -78,7 +78,7 @@ SC_MODULE(TTile)
   
   // DP signals
  // sc_signal<int>     used_buffer_size[DIRECTIONS];
-  sc_signal<int>     local_dp_cost;
+  sc_signal<int>     local_dp_cost[DIRECTIONS];
   sc_signal<int>     dp_dir [DIRECTIONS];
  
  
@@ -103,7 +103,9 @@ SC_MODULE(TTile)
     dp = new DPNode ("DPName");
     dp->dp_clock(dp_clock);
     dp->reset(reset);  
-    dp->local_dp_cost (local_dp_cost);  
+    //dp->local_dp_cost (local_dp_cost);  
+	
+	for (int i=0; i<DIRECTIONS; i++) dp->local_dp_cost[i](local_dp_cost[i]);
 
    
    for(int i=0; i<DIRECTIONS; i++)
@@ -137,8 +139,9 @@ SC_MODULE(TTile)
      
              
     }
-	r->local_dp_cost (local_dp_cost);
-    
+	//r->local_dp_cost (local_dp_cost);
+    for (int i=0; i<DIRECTIONS; i++) r ->local_dp_cost[i](local_dp_cost[i]);
+	
     r->flit_rx[DIRECTION_LOCAL](flit_tx_local);
     r->req_rx[DIRECTION_LOCAL](req_tx_local);
     r->ack_rx[DIRECTION_LOCAL](ack_tx_local);

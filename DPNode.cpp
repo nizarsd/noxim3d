@@ -31,14 +31,12 @@ void DPNode::dpProcess()
 		{
 			dp_tx[i].write  (BIG_VALUE);
 			dp_dir[i].write (NOT_VALID);
+			frozen_local_cost[i] = 0;
 		}
 		for (int d=0; d<DPSIZE; d++)
 			for (int i=0; i<DIRECTIONS; i++)
 				cost_mem[d][i] = BIG_VALUE;
 			
-		frozen_local_cost = 0;
-
-
 		return;
 	}
 
@@ -50,7 +48,7 @@ void DPNode::dpProcess()
 	
 	if (phase == 0) {
 		for (int i=0; i<DIRECTIONS; i++)
-			frozen_local_cost[i] = dp_channel_cost[i];
+			frozen_local_cost[i] = local_dp_cost[i].read();
 	}
 
 	// Destination node: cost anchor (0 to itself), every cycle of its dwell window.

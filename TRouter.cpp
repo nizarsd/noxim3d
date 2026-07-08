@@ -297,14 +297,16 @@ void TRouter::bufferMonitor()
 
   if (reset.read())
   {
-    for (int i=0; i<DIRECTIONS+1; i++) free_slots[i].write(buffer[i].GetMaxBufferSize());
+	for (int i=0; i<DIRECTIONS+1; i++) free_slots[i].write(buffer[i].GetMaxBufferSize());
+    for (int d=0; d<DIRECTIONS; d++) channel_load[d] = 0;
+    channel_samples = 0;
   }
   else
   {
 	// accumulate downstream occupancy per output channel for DP with per channel cost, avg buffer level <Nizar> 
 	for (int d = 0; d < DIRECTIONS; d++) {
 		int free = free_slots_neighbor[d].read();
-		int maxb = GlobalParams::buffer_depth ; // max buffer size
+		int maxb = TGlobalParams::buffer_depth ; // max buffer size
 		channel_load[d] += (maxb - free);     	// occupancy = max - free
 	}
 	channel_samples++;
@@ -1236,39 +1238,58 @@ bool TRouter::inCongestion()
 	// }
 // }
 
-// cost to go buffer level based per channel <Nizar> 
+//cost to go buffer level based per channel <Nizar> 
+// void TRouter::cost_to_go()
+// {
+	// if (TGlobalParams::selection_strategy != SEL_DP)
+		// return;
+
+	// int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
+	// int phase = stime % dp_cycle();
+	
+	// if (stime%TGlobalParams::tcu_interval == 0) {
+	//	cost_to_go, at cinterval boundary:
+		// for (int d = 0; d < DIRECTIONS; d++) {
+			// int maxb = TGlobalParams::buffer_depth;
+			// int avg = channel_samples ? channel_load[d] / channel_samples : 0;
+			// dp_channel_cost[d] = min(100, (100 * avg) / maxb);   // normalize 0..100
+			// local_dp_cost[d].write(dp_channel_cost[d]);
+			// channel_load[d] = 0;
+		// }
+		// channel_samples = 0;
+	// }
+
+	// if (phase == dp_pass())                 // SETTLE begins: reset, measure new-policy traffic cleanly
+	// {
+		// traffic_counter = 0;
+	// }
+	// else if (phase == dp_cycle() - 1)       // SETTLE ends: publish cost for the next CONVERGE snapshot
+	// {
+		// int dp_cost = (100 * traffic_counter) / (dp_settle() * 4);
+		// local_dp_cost.write(dp_cost);
+	// }
+// }
+
+
+// cost to go: buffer-level based, per channel <Nizar>
 void TRouter::cost_to_go()
 {
 	if (TGlobalParams::selection_strategy != SEL_DP)
 		return;
 
 	int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
-	int phase = stime % dp_cycle();
-	
-	if (stime%TGlobalParams::tcu_interval) {
-		// cost_to_go, at cinterval boundary:
+
+	if (stime % TGlobalParams::tcu_interval == 0) {
+		int maxb = TGlobalParams::buffer_depth;
 		for (int d = 0; d < DIRECTIONS; d++) {
 			int avg = channel_samples ? channel_load[d] / channel_samples : 0;
-			dp_channel_cost[d] = min(100, (100 * avg) / maxb);   // normalize 0..100
+			dp_channel_cost[d] = min(100, (100 * avg) / maxb);
 			local_dp_cost[d].write(dp_channel_cost[d]);
 			channel_load[d] = 0;
 		}
 		channel_samples = 0;
 	}
-
-	if (phase == dp_pass())                 // SETTLE begins: reset, measure new-policy traffic cleanly
-	{
-		traffic_counter = 0;
-	}
-	else if (phase == dp_cycle() - 1)       // SETTLE ends: publish cost for the next CONVERGE snapshot
-	{
-		int dp_cost = (100 * traffic_counter) / (dp_settle() * 4);
-		local_dp_cost.write(dp_cost);
-	}
 }
-
-
-
 //---------------------------------------------------------------------------
 // 3D Odd Even <Nizar>
 vector<int> TRouter::routingOddEven3D(const TRouteData& route_data)

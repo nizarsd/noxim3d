@@ -11,7 +11,7 @@ SC_MODULE(DPNode)
    sc_in<bool>         dp_clock, reset;        	 
    sc_in<int>          dp_rx[DIRECTIONS]; 		  		   // DP-network input 
   // sc_in<int>        used_buffer_size[DIRECTIONS];       // cost function 
-   sc_in<int>          local_dp_cost; 			   // cost function     	 
+   sc_in<int>          local_dp_cost[DIRECTIONS]; 			   // cost function     	 
 
    sc_out<int>         dp_tx[DIRECTIONS];                // DP-network output           
    sc_out<int>         dp_dir[DIRECTIONS];       	 // DP-network selected direction
@@ -21,7 +21,7 @@ SC_MODULE(DPNode)
  // Registers
 
   int local_id, dst_id;               // Unique ID
-  int frozen_local_cost;   			  // to latch the cost to DP nodes once for every full convergence of DP
+  int frozen_local_cost[DIRECTIONS];  // to latch the cost to DP nodes once for every full convergence of DP
   int stime2;
   int cost_mem[DPSIZE][DIRECTIONS];   // advertised cost per dst per input dir
  // Functions
