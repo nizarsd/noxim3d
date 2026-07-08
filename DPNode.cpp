@@ -23,8 +23,6 @@ void DPNode::dpProcess()
 	
 	dst_id = (phase / dp_dwell()) % dp_no_dst(); // converge-phase destination
 	
-	if (phase == 0)
-		frozen_local_cost = local_dp_cost.read();
 
 
 	if (reset.read())
@@ -46,8 +44,7 @@ void DPNode::dpProcess()
 
 	if (!dp_clock.posedge())  return;
 	
-	if (stime % dp_pass() == 0)
-		frozen_local_cost = local_dp_cost.read();
+	if (phase == 0) frozen_local_cost = local_dp_cost.read();
 
 	// Destination node: cost anchor (0 to itself), every cycle of its dwell window.
 	if (local_id == dst_id)
