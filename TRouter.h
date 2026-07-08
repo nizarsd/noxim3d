@@ -196,6 +196,12 @@ SC_MODULE(TRouter)
    float router_temp; // added by Ra'ed
    int   dw_level;
    int traffic_counter;
+   
+	// was: int traffic_counter; <Nizar 2026)
+	int    channel_load[DIRECTIONS];      // accumulated occupancy per output channel
+	int    channel_samples;               // sample count in current window
+	int    dp_channel_cost[DIRECTIONS];   // averaged per-channel cost, published to DP
+
 
    //<Nizar>
    float pre_temp; 

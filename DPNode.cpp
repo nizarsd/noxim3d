@@ -44,7 +44,14 @@ void DPNode::dpProcess()
 
 	if (!dp_clock.posedge())  return;
 	
-	if (phase == 0) frozen_local_cost = local_dp_cost.read();
+	// for single cost metric
+	// if (phase == 0) 
+		// frozen_local_cost = local_dp_cost.read();
+	
+	if (phase == 0) {
+		for (int i=0; i<DIRECTIONS; i++)
+			frozen_local_cost[i] = dp_channel_cost[i];
+	}
 
 	// Destination node: cost anchor (0 to itself), every cycle of its dwell window.
 	if (local_id == dst_id)
@@ -70,7 +77,7 @@ void DPNode::dpProcess()
 	int rx_dp_cost[DIRECTIONS];
 	for (int i=0; i<DIRECTIONS; i++)
 		rx_dp_cost[i] = (dp_rx[i] >= BIG_VALUE) ? BIG_VALUE
-		              : (int)(dp_rx[i]*alpha) + frozen_local_cost;
+		              : (int)(dp_rx[i]*alpha) + frozen_local_cost[i];
 
 	int sorted_ports[] = {0,1,2,3,4,5};
 	BubbleSort(rx_dp_cost, sorted_ports);       // ports ordered by ascending cost

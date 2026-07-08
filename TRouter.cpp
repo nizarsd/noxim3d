@@ -80,7 +80,7 @@ bool actvity_flag=0;
 		current_level_rx[i] = 1-current_level_rx[i];
 
 		// Incoming flit
-		traffic_counter++;
+		// traffic_counter++;
 		stats.power.Incoming();
 	      }
 	    }
@@ -301,6 +301,13 @@ void TRouter::bufferMonitor()
   }
   else
   {
+	// accumulate downstream occupancy per output channel for DP with per channel cost, avg buffer level <Nizar> 
+	for (int d = 0; d < DIRECTIONS; d++) {
+		int free = free_slots_neighbor[d].read();
+		int maxb = GlobalParams::buffer_depth ; // max buffer size
+		channel_load[d] += (maxb - free);     	// occupancy = max - free
+	}
+	channel_samples++;
 
   //  if (TGlobalParams::selection_strategy==SEL_BUFFER_LEVEL ||
 	//TGlobalParams::selection_strategy==SEL_NOP)
@@ -308,7 +315,7 @@ void TRouter::bufferMonitor()
 
       // update current input buffers level to neighbors
       for (int i=0; i<DIRECTIONS+1; i++)
-	free_slots[i].write(buffer[i].getCurrentFreeSlots());
+		free_slots[i].write(buffer[i].getCurrentFreeSlots());
 
       // NoP selection: send neighbor info to each direction 'i'
       TNoP_data current_NoP_data = getCurrentNoPData();
@@ -1205,11 +1212,31 @@ bool TRouter::inCongestion()
   return false;
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // Update the cost function on the DP-unit -- added by Ra'ed, Modified by <Nizar>
 // Three-phase control: measure ONLY during SETTLE (new tables fully in effect),
 // publish the cost at SETTLE end so dpProcess snapshots it at the next CONVERGE
 // start (phase==0). CONVERGE-phase traffic is discarded (routes still changing).
+// void TRouter::cost_to_go()
+// {
+	// if (TGlobalParams::selection_strategy != SEL_DP)
+		// return;
+
+	// int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
+	// int phase = stime % dp_cycle();
+
+	// if (phase == dp_pass())                 // SETTLE begins: reset, measure new-policy traffic cleanly
+	// {
+		// traffic_counter = 0;
+	// }
+	// else if (phase == dp_cycle() - 1)       // SETTLE ends: publish cost for the next CONVERGE snapshot
+	// {
+		// int dp_cost = (100 * traffic_counter) / (dp_settle() * 4);
+		// local_dp_cost.write(dp_cost);
+	// }
+// }
+
+// cost to go buffer level based per channel <Nizar> 
 void TRouter::cost_to_go()
 {
 	if (TGlobalParams::selection_strategy != SEL_DP)
@@ -1217,6 +1244,17 @@ void TRouter::cost_to_go()
 
 	int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
 	int phase = stime % dp_cycle();
+	
+	if (stime%TGlobalParams::tcu_interval) {
+		// cost_to_go, at cinterval boundary:
+		for (int d = 0; d < DIRECTIONS; d++) {
+			int avg = channel_samples ? channel_load[d] / channel_samples : 0;
+			dp_channel_cost[d] = min(100, (100 * avg) / maxb);   // normalize 0..100
+			local_dp_cost[d].write(dp_channel_cost[d]);
+			channel_load[d] = 0;
+		}
+		channel_samples = 0;
+	}
 
 	if (phase == dp_pass())                 // SETTLE begins: reset, measure new-policy traffic cleanly
 	{
