@@ -17,17 +17,15 @@ void DPNode::dpProcess()
 	// One destination held for `dwell` (>= mesh diameter) consecutive cycles so its
 	// cost field fully converges in place before advancing to the next destination.
 	// measure -> snapshot -> DP converge (config)-> settle for ss measurement 
-	int phase  = stime % dp_cycle();
-	if (phase >= dp_pass()) return;         // SETTLE phase: DP idle, network runs on new tables
+	int phase = stime % dp_cycle();
 	
-	dst_id = (phase / dp_dwell()) % dp_no_dst(); // CONVERGE phase: relax as before
-
-	// snapshot cost at the START of each converge phase = END of previous settle,
-	// i.e. reflects congestion produced BY the new routing
+	if (phase >= dp_pass()) return;              // SETTLE: DP idle
+	
+	dst_id = (phase / dp_dwell()) % dp_no_dst(); // converge-phase destination
+	
 	if (phase == 0)
-	frozen_local_cost = local_dp_cost.read();
+		frozen_local_cost = local_dp_cost.read();
 
-	dst_id    = (stime / dp_dwell()) % dp_no_dst();
 
 	if (reset.read())
 	{

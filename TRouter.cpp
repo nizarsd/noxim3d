@@ -338,10 +338,10 @@ void TRouter::routing_directionsUpdater()
 	}
 
 	int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
-	int dwell = dp_dwell();
-	if (stime % dwell != dwell-1) return;      // latch once, at end of dwell window
-
-	int dst_id = (stime / dwell) % no_dst;       // always < no_dst; guard below now redundant
+	int phase = stime % dp_cycle();
+	if (phase >= dp_pass()) return;              	    // don't latch during settle
+	if (phase % dp_dwell() != dp_dwell() - 1) return;   // latch at end of each dwell window
+	int dst_id = (phase / dp_dwell()) % dp_no_dst();
 	for (int i=0; i<DIRECTIONS; i++)
 		routing_directions[dst_id][i] = dp_dir[i];
 }
