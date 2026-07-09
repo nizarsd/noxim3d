@@ -140,6 +140,105 @@ void DPNode::dpProcess()
 
 }
 
+// void DPNode::dpProcess()
+// {
+	// // Gating for other selection methods
+	// if (TGlobalParams::selection_strategy != SEL_DP)  return; 
+	
+		
+		// //int dp_time=2;
+		// int stime   = (int) (sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
+		// // int cFlag = (stime%dp_time) ;//&& (stime>=0);
+		// // number of desinations (total no of nodes)
+		// int no_dst=TGlobalParams::mesh_dim_x*TGlobalParams::mesh_dim_y*TGlobalParams::mesh_dim_z; 
+		// int dp_dwell= 1; //(TGlobalParams::mesh_dim_x + TGlobalParams::mesh_dim_y + TGlobalParams::mesh_dim_z);  // >= mesh diameter (dx-1 + dy-1 + dz-1)
+		// int dst_id = (stime / dp_dwell) % no_dst;
+
+		// int	 dp_cost [DIRECTIONS];
+		// int idfrom=99, idto=0;
+		// //          if (local_id==10 && dst_id<no_dst)
+		// //	           cout<<stime<<":"<<dst_id<<endl;
+
+		// /*//   dst_id = (stime%no_dst);     ///<Nizar>
+		// if (dst_id==idto && local_id==idfrom)
+		// {
+			// cout<<" stime: "<< stime<< " local_id: "<<local_id <<endl; 
+			// for(int i=0; i<DIRECTIONS; i++)
+			// cout<< dp_rx[i]<<"  ";
+
+			// cout<< endl;		
+		// }// */
+       
+
+	  // if (reset.read())
+	   // {
+             // for(int i=0; i<DIRECTIONS; i++) 
+		 // {
+		   // dp_tx[i].write   (BIG_VALUE);
+		   // dp_dir[i].write  (NOT_VALID);
+		 // }
+		// }
+	 // else if (dp_clock.posedge())
+	  // {
+	   // if (local_id ==  dst_id && dst_id < no_dst )  // if the current node is the destination node
+		// {    
+		
+		  // for(int i=0; i<DIRECTIONS; i++)
+			// {
+			 // dp_tx[i].write (0); 
+			 // dp_dir[i].write(NOT_VALID);
+			// }
+		// }
+	 
+	 // else if (local_id != dst_id  && dst_id < no_dst)
+		// {
+		 // int rx_dp_cost [DIRECTIONS]; 
+		 // int min      = BIG_VALUE;
+		 // int best_dir = NOT_VALID;
+		 // int best_dir2 =NOT_VALID;
+        
+ // /*               if (local_id == idfrom && dst_id==idto) 
+			 // for(int j=0; j<DIRECTIONS; j++)  
+				 // for(int i=0; i<DIRECTIONS; i++)  
+					// cout<<" stime: "<< stime<<" can turn "<<i << " -> "<< j <<" from"<<local_id<< " to " <<dst_id<< " is " <<  can_turn(i,j, dst_id)<<endl;  // */
+
+              	 // for(int i=0; i<DIRECTIONS; i++)   // find the minimum cost
+					// rx_dp_cost[i] = (int)(dp_rx[i]*alpha) + local_dp_cost; //used_buffer_size[i];
+
+		
+		// int sorted_ports[]={0,1,2,3,4,5};
+  		// BubbleSort(rx_dp_cost, sorted_ports);  // sort ports by thier cost
+
+		// int HIGH_COST=BIG_VALUE;  // cost to not possible turn directions 
+		// int dp_cost [DIRECTIONS]={HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST,HIGH_COST};     // the cost that will be propagated to each direction
+		
+		 // for(int i=0; i<DIRECTIONS; i++)  // send the min cost to directions with possible turns to current dst_id
+			// for (int j=0; j<DIRECTIONS; j++)
+			// {
+				// if (can_turn(j,sorted_ports[i], dst_id) && dp_cost[j] > rx_dp_cost[sorted_ports[i]])   // this function is not dependent on dir_in !!
+				// dp_cost[j]=rx_dp_cost[sorted_ports[i]];
+			// }
+			
+                 
+
+        
+
+
+			// for(int i=0; i<DIRECTIONS; i++)
+			// {
+				// dp_tx[i].write (dp_cost [i]);   	
+				// dp_dir[i].write(sorted_ports[i]);
+			// }
+
+				 
+
+		 
+	// } // local id <> dest id
+   // } // dp_clock.posedge() && dst_id < no_dst
+// } // process end 
+
+//---------------------------------------------------------------------------
+
 
 void  DPNode::configure(const int _local_id)
 {
@@ -1041,35 +1140,67 @@ return in_directions;
 
 
 // Balanced minimum odd-even <Nizar>
+// MUST mirror TRouter::routingOddEvenBalanced exactly — change both together.
 bool DPNode::can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id)
 {
-  TCoord current = id2Coord(local_id);
-  TCoord dest    = id2Coord(dst_id);
+  TCoord current     = id2Coord(local_id);
+  TCoord destination = id2Coord(dst_id);
+  TCoord source      = current;
 
-  // Straight-through and 180° are always allowed (or handle U-turns per your policy)
-  if (dir_in == dir_out) return true;
-
-  // Determine plane orientation: even plane row-wise (OE0), odd plane column-wise (OE1)
-  // For OE0 (row-wise, uses x as the "column" axis):
-  int col = current.x;   // parity axis for row-wise odd-even
-
-  // Odd-even turn restrictions (Chiu), row-wise variant:
-  // Forbidden in EVEN column: any turn FROM East to North or South
-  if (col % 2 == 0) {
-    if (dir_in == DIRECTION_EAST && (dir_out == DIRECTION_NORTH || dir_out == DIRECTION_SOUTH))
-      return false;
-  }
-  // Forbidden in ODD column: any turn TO West from North or South
-  if (col % 2 == 1) {
-    if ((dir_in == DIRECTION_NORTH || dir_in == DIRECTION_SOUTH) && dir_out == DIRECTION_WEST)
-      return false;
+  switch (dir_in) {              // reconstruct one-hop-back source
+  case DIRECTION_NORTH: source.y -= 1; break;
+  case DIRECTION_EAST:  source.x += 1; break;
+  case DIRECTION_SOUTH: source.y += 1; break;
+  case DIRECTION_WEST:  source.x -= 1; break;
+  case DIRECTION_UP:    source.z += 1; break;
+  case DIRECTION_DOWN:  source.z -= 1; break;
+  default: assert(false);
   }
 
-  // Vertical (z) turns: allow only toward destination plane per your minimal rule
-  // (mirror routingOddEvenBalanced's ez gating)
-  int ez = dest.z - current.z;
-  if (dir_out == DIRECTION_UP   && ez >= 0) return false;   // don't go up if dst is same/below
-  if (dir_out == DIRECTION_DOWN && ez <= 0) return false;   // don't go down if dst is same/above
+  vector<int> directions;
 
-  return true;   // turn permitted
+  int sz = source.z,      cz = current.z,  dz = destination.z;
+  int ex = destination.x - current.x;
+  int ey = destination.y - current.y;
+  int ez = dz - cz;
+  
+    if (ez == 0)
+  {
+    // on destination plane: parity-split in-plane only
+    if (cz % 2 == 0)
+      directions = routingOddEven0(current, source, destination); // row-wise
+    else
+      directions = routingOddEven1(current, source, destination); // column-wise
+  }
+  else if (ez > 0)   // going down
+  {
+    if ((ex == 0) && (ey == 0))
+      directions.push_back(DIRECTION_DOWN);      // aligned: descend only
+    else
+    {
+      if ((cz % 2 == 1) || (cz == sz))           // in-plane on odd or source plane
+      {
+        if (cz % 2 == 0)
+          directions = routingOddEven0(current, source, destination);
+        else
+          directions = routingOddEven1(current, source, destination);
+      }
+      if ((dz % 2 == 1) || (ez != 1))            // descend under published condition
+        directions.push_back(DIRECTION_DOWN);
+    }
+  }
+  else               // ez < 0, going up
+  {
+    // exclusivity preserved from the published algorithm:
+    // unaligned + even plane -> in-plane ONLY; otherwise UP only
+    if ((ex != 0 || ey != 0) && (cz % 2 == 0))
+      directions = routingOddEven0(current, source, destination); // even plane: row-wise
+    else
+      directions.push_back(DIRECTION_UP);
+  }
+  
+  for (unsigned int i = 0; i < directions.size(); i++)
+    if (dir_out == directions[i])
+      return true;
+  return false;
 }
