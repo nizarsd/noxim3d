@@ -75,7 +75,7 @@ void DPNode::dpProcess()
 	int rx_dp_cost[DIRECTIONS];
 	for (int i=0; i<DIRECTIONS; i++)
 		rx_dp_cost[i] = (dp_rx[i] >= BIG_VALUE) ? BIG_VALUE
-		              : (int)(dp_rx[i]*alpha) + frozen_local_cost[i];
+		              : (int)(dp_rx[i]*alpha) + frozen_local_cost[i] + 1;
 
 	int sorted_ports[] = {0,1,2,3,4,5};
 	BubbleSort(rx_dp_cost, sorted_ports);       // ports ordered by ascending cost
@@ -118,15 +118,12 @@ void DPNode::dpProcess()
 		std::cout << "[DP] dst=" << dst_id << " step=" << (stime % dp_dwell())
 				  << " node=" << local_id << "(" << nx << "," << ny << "," << nz << ")"
 				  << " mincost=" << (mincost>=BIG_VALUE ? -1 : mincost)
-				  << " frz=" << frozen_local_cost
-				  << " rx[";                                   
-				  for(int i=0;i<DIRECTIONS;i++) std::cout<<dp_rx[i].read()<<" ";
-				  std::cout << "]"                              
-				  << "  perdir[";
-	
-
-		for (int i=0; i<DIRECTIONS; i++)
-			std::cout << (dp_cost[i]>=BIG_VALUE ? -1 : dp_cost[i]) << (i<5?" ":"");
+				  << " frz[";
+		for(int i=0;i<DIRECTIONS;i++) std::cout << frozen_local_cost[i] << " ";
+		std::cout << "] rx[";
+		for(int i=0;i<DIRECTIONS;i++) std::cout << dp_rx[i].read() << " ";
+		std::cout << "] perdir[";
+		for(int i=0;i<DIRECTIONS;i++) std::cout << (dp_cost[i]>=BIG_VALUE?-1:dp_cost[i]) << " ";
 		std::cout << "]" << std::endl;
 		
 	}
@@ -582,11 +579,12 @@ vector<int> DPNode::routingOddEven1(const TCoord& current,
 		  {
 		    directions.push_back(DIRECTION_EAST);
 			if ((c0 % 2 == 0 || c0 == s0) && e0 != 1)			 // for NM routing  
-			     {
-				if (e1 > 0)
-					directions.push_back(DIRECTION_NORTH);
-				else
-					directions.push_back(DIRECTION_SOUTH);			     }
+			    {
+					if (e1 > 0)
+						directions.push_back(DIRECTION_NORTH);
+					else
+						directions.push_back(DIRECTION_SOUTH);			     
+				}
 		  }
 	    
 	    else

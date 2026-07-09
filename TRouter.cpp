@@ -302,14 +302,20 @@ void TRouter::bufferMonitor()
     channel_samples = 0;
   }
   else
-  {
+  {				
+
+	int maxb = TGlobalParams::buffer_depth ; // max buffer size
+
+	  
 	// accumulate downstream occupancy per output channel for DP with per channel cost, avg buffer level <Nizar> 
 	for (int d = 0; d < DIRECTIONS; d++) {
 		int free = free_slots_neighbor[d].read();
-		int maxb = TGlobalParams::buffer_depth ; // max buffer size
-		channel_load[d] += (maxb - free);     	// occupancy = max - free
+		if (free == NOT_VALID) continue;              // no neighbour (boundary) — skip, don't count
+		if (free > maxb) free = maxb;
+		channel_load[d] += (maxb - free);
 	}
 	channel_samples++;
+
 
   //  if (TGlobalParams::selection_strategy==SEL_BUFFER_LEVEL ||
 	//TGlobalParams::selection_strategy==SEL_NOP)
@@ -1279,13 +1285,21 @@ void TRouter::cost_to_go()
 
 	int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
 
-	if (stime % TGlobalParams::tcu_interval == 0) {
+		if (stime % TGlobalParams::tcu_interval == 0) {
+			#ifdef DP_DEBUG
+				if (local_id == 4 && stime % TGlobalParams::tcu_interval == 0)
+				std::cerr << "load[0]=" << channel_load[0] << " samples=" << channel_samples 
+				<< " avg0=" << (channel_samples?channel_load[0]/channel_samples:0) << "\n";
+
+			#endif
+    
 		int maxb = TGlobalParams::buffer_depth;
 		for (int d = 0; d < DIRECTIONS; d++) {
-			int avg = channel_samples ? channel_load[d] / channel_samples : 0;
-			dp_channel_cost[d] = min(100, (100 * avg) / maxb);
+			// avg occupancy as a percentage of buffer, computed without losing the fraction
+			int avg_pct = channel_samples ? (100 * channel_load[d]) / (channel_samples * maxb) : 0;
+			dp_channel_cost[d] = avg_pct;   // 0..100, keeps sub-integer averages
 			local_dp_cost[d].write(dp_channel_cost[d]);
-			channel_load[d] = 0;
+						channel_load[d] = 0;
 		}
 		channel_samples = 0;
 	}

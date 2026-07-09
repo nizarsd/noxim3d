@@ -220,7 +220,7 @@ inline int dp_diameter()
 
 inline int dp_dwell()   { return dp_diameter() + 3; }              // cycles per destination
 inline int dp_pass()    { return dp_dwell() * dp_no_dst(); }        // full converge sweep
-inline int dp_settle()  { return dp_pass(); }                      // network-settle window (tune)
+inline int dp_settle()  { return dp_pass(); }                 // network-settle window (tune)
 inline int dp_cycle()   { return dp_pass() + dp_settle(); }        // full reconfiguration period
 
 //---------------------------------------------------------------------------
