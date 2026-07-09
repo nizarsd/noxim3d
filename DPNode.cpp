@@ -90,14 +90,26 @@ void DPNode::dpProcess()
 			if (can_turn(j, sorted_ports[i], dst_id) && dp_cost[j] > rx_dp_cost[sorted_ports[i]])
 				dp_cost[j] = rx_dp_cost[sorted_ports[i]];
 
-	#ifdef DP_DEBUG
-	if (dst_id == DP_WATCH_DST && local_id == 1) {
-	std::cout << "can_turn(j, WEST): ";
-	for (int j=0;j<DIRECTIONS;j++)
-		std::cout << j << "=" << can_turn(j, DIRECTION_WEST, dst_id) << " ";
-	std::cout << std::endl;
-	}
-	#endif
+#ifdef DP_DEBUG
+if (dst_id == DP_WATCH_DST && local_id == 1) {
+    TCoord c = id2Coord(local_id);
+    TCoord d = id2Coord(dst_id);
+
+    std::cout << "current=(" << c.x << "," << c.y << "," << c.z << ") "
+              << "dst=(" << d.x << "," << d.y << "," << d.z << ")"
+              << std::endl;
+
+    for (int out = 0; out < DIRECTIONS; out++) {
+        std::cout << "out " << out << " minimal="
+                  << isMinimalOutput(out, c, d) << " : ";
+
+        for (int in = 0; in < DIRECTIONS; in++)
+            std::cout << in << "=" << can_turn(in, out, dst_id) << " ";
+
+        std::cout << std::endl;
+    }
+}
+#endif
 	
 	for (int i=0; i<DIRECTIONS; i++)
 	{
@@ -266,8 +278,17 @@ case ROUTING_ODD_EVEN_3DNM:
 	    break;
 
 case ROUTING_ODD_EVEN_BALANCED:
-		return can_turnOddEvenBalanced(dir_in, dir_out, dst_id);
-		break;
+    /*
+     * TRouter falls back to plain 2D odd-even when mesh_dim_z == 1.
+     * DP legality must follow the same dispatch.
+     */
+    if (TGlobalParams::mesh_dim_z == 1)
+        return can_turnOddEven(dir_in, dir_out, dst_id);
+
+    return can_turnOddEvenBalanced(dir_in, dir_out, dst_id);
+
+	break;
+  
   default:
 	return true;
 }
@@ -276,106 +297,73 @@ case ROUTING_ODD_EVEN_BALANCED:
 
 }
 
-// 3D Odd Even <Nizar>
 bool DPNode::can_turnOddEven(int dir_in, int dir_out, int dst_id)
 {
-  TCoord current  		= id2Coord(local_id);
-  TCoord destination 	= id2Coord(dst_id);
-  int idfrom=189, idto=5;
-  TCoord source 	= current;
+    TCoord current     = id2Coord(local_id);
+    TCoord destination = id2Coord(dst_id);
 
-  switch ( dir_in ) {
+    /*
+     * In this direction convention, dir_in == dir_out means the packet
+     * would immediately go back to the router it came from.
+     */
+    if (dir_in == dir_out)
+        return false;
 
-  case DIRECTION_NORTH : 
-	     source.y-=1;
-	     break;
-  case DIRECTION_EAST : 
-	    source.x+=1;
-	    break;
-  case DIRECTION_SOUTH : 
-	    source.y+=1;
-	    break;
-  case DIRECTION_WEST: 
-	    source.x-=1;
-	    break;
-  case DIRECTION_UP : 
-	    source.z+=1;
-	    break;
-  case DIRECTION_DOWN : 
-	    source.z-=1;
-	    break;
-  default:
-	// you must not be here !
-	assert (false);
+    /*
+     * DP must not propagate through non-minimal outputs.
+     */
+    if (!isMinimalOutput(dir_out, current, destination))
+        return false;
+
+    vector<int> directions;
+
+    int cz = current.z;
+    int dz = destination.z;
+
+    int ex = destination.x - current.x;
+    int ey = destination.y - current.y;
+    int ez = dz - cz;
+
+    if (ez == 0) {
+        directions = routingOddEvenDPStrict(current, destination);
+    }
+    else if (ez > 0) { // going DOWN
+        if ((ex == 0) && (ey == 0)) {
+            directions.push_back(DIRECTION_DOWN);
+        }
+        else {
+            /*
+             * Real 3D OE had:
+             *     (cz % 2 == 1) || (cz == sz)
+             *
+             * DP does not know true source plane, so remove cz == sz.
+             */
+            if (cz % 2 == 1)
+                directions = routingOddEvenDPStrict(current, destination);
+
+            if ((dz % 2 == 1) || (ez != 1))
+                directions.push_back(DIRECTION_DOWN);
+        }
+    }
+    else { // ez < 0, going UP
+        /*
+         * Preserve vertical exclusivity:
+         * unaligned + even plane => in-plane only;
+         * otherwise => UP only.
+         */
+        if ((ex != 0 || ey != 0) && (cz % 2 == 0))
+            directions = routingOddEvenDPStrict(current, destination);
+        else
+            directions.push_back(DIRECTION_UP);
+    }
+
+    for (unsigned int i = 0; i < directions.size(); i++) {
+        if (dir_out == directions[i])
+            return true;
+    }
+
+    return false;
 }
-
-   vector<int> directions;
-   int sz=source.z;
-   int cz=current.z;
-   int dz=destination.z;
-   
-   int sx=source.x;
-   int cx=current.x;
-   int dx=destination.x;
-   
-   int sy=source.y;
-   int cy=current.y;
-   int dy=destination.y;
-
-   int ex = dx-cx;
-   int ey = dy-cy;
-   int ez = dz-cz;
-
- if (ez == 0)
-	directions=routingOddEven(current, source, destination);
-
-  else
-    {
-	  if (ez > 0)   // z direction is +ve (going down)
-	    {
-		if ((ex==0) && (ey == 0))  // at the xy of destination 
-			directions.push_back(DIRECTION_DOWN);
-	    else
-	    	{
-	      	 if ((cz % 2 == 1) || (cz==sz))   //
-	 		directions=routingOddEven(current, source, destination);
-				
-  		 if ((dz % 2 == 1) || (ez != 1))
-		  	directions.push_back(DIRECTION_DOWN);
-		}
-		
-	    } // z direction is +ve
-	  
-	  else   // z direction is -ve ( going up)
-		{
-		  // need xy-plane routing and the z plane is even	
-		directions.push_back(DIRECTION_UP);
-
-	        if ((ex!=0 || ey!=0) &&  (cz % 2 == 0) )  
-			directions=routingOddEven(current, source, destination);
-		
-
-	    } // z direction is -ve
-    } //ez==0
-
-
-bool in_directions=false;
-
-for (int i=0; i<directions.size(); i++)
-	if(dir_out==directions[i])
-		in_directions=true;
-
-
-/*if (local_id == idfrom && dst_id==idto)
-	cout<<" from: "<<dir_in<< " to: "<< dir_out<<" is: "<<in_directions<<endl; //*/
-
-
-
-return in_directions;
-
- 
-}
-
 
 vector<int> DPNode::routingOddEven(const TCoord& current, 
           			    const TCoord& source, const TCoord& destination)
@@ -1138,69 +1126,307 @@ for (int i=0; i<directions.size(); i++)
 return in_directions;
 }
 
-
-// Balanced minimum odd-even <Nizar>
-// MUST mirror TRouter::routingOddEvenBalanced exactly — change both together.
 bool DPNode::can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id)
 {
-  TCoord current     = id2Coord(local_id);
-  TCoord destination = id2Coord(dst_id);
-  TCoord source      = current;
+    TCoord current     = id2Coord(local_id);
+    TCoord destination = id2Coord(dst_id);
 
-  switch (dir_in) {              // reconstruct one-hop-back source
-  case DIRECTION_NORTH: source.y -= 1; break;
-  case DIRECTION_EAST:  source.x += 1; break;
-  case DIRECTION_SOUTH: source.y += 1; break;
-  case DIRECTION_WEST:  source.x -= 1; break;
-  case DIRECTION_UP:    source.z += 1; break;
-  case DIRECTION_DOWN:  source.z -= 1; break;
-  default: assert(false);
-  }
+    /*
+     * In this direction convention, dir_in == dir_out means immediate
+     * physical backtracking.
+     */
+    if (dir_in == dir_out)
+        return false;
 
-  vector<int> directions;
+    /*
+     * Mandatory: DP must only propagate through minimal path outputs.
+     */
+    if (!isMinimalOutput(dir_out, current, destination))
+        return false;
 
-  int sz = source.z,      cz = current.z,  dz = destination.z;
-  int ex = destination.x - current.x;
-  int ey = destination.y - current.y;
-  int ez = dz - cz;
-  
-    if (ez == 0)
-  {
-    // on destination plane: parity-split in-plane only
-    if (cz % 2 == 0)
-      directions = routingOddEven0(current, source, destination); // row-wise
-    else
-      directions = routingOddEven1(current, source, destination); // column-wise
-  }
-  else if (ez > 0)   // going down
-  {
-    if ((ex == 0) && (ey == 0))
-      directions.push_back(DIRECTION_DOWN);      // aligned: descend only
-    else
-    {
-      if ((cz % 2 == 1) || (cz == sz))           // in-plane on odd or source plane
-      {
+    vector<int> directions;
+
+    int cz = current.z;
+    int dz = destination.z;
+
+    int ex = destination.x - current.x;
+    int ey = destination.y - current.y;
+    int ez = dz - cz;
+
+    if (ez == 0) {
+        /*
+         * Same-plane movement:
+         * even z-plane => OE0
+         * odd  z-plane => OE1
+         */
         if (cz % 2 == 0)
-          directions = routingOddEven0(current, source, destination);
+            directions = routingOddEven0_DPStrict(current, destination);
         else
-          directions = routingOddEven1(current, source, destination);
-      }
-      if ((dz % 2 == 1) || (ez != 1))            // descend under published condition
-        directions.push_back(DIRECTION_DOWN);
+            directions = routingOddEven1_DPStrict(current, destination);
     }
-  }
-  else               // ez < 0, going up
-  {
-    // exclusivity preserved from the published algorithm:
-    // unaligned + even plane -> in-plane ONLY; otherwise UP only
-    if ((ex != 0 || ey != 0) && (cz % 2 == 0))
-      directions = routingOddEven0(current, source, destination); // even plane: row-wise
-    else
-      directions.push_back(DIRECTION_UP);
-  }
-  
-  for (unsigned int i = 0; i < directions.size(); i++)
-    if (dir_out == directions[i])
-      return true;
-  return false;
+    else if (ez > 0) { // going DOWN
+        if ((ex == 0) && (ey == 0)) {
+            directions.push_back(DIRECTION_DOWN);
+        }
+        else {
+            /*
+             * Real balanced routing had:
+             *     (cz % 2 == 1) || (cz == sz)
+             *
+             * DP does not know true source plane, so remove cz == sz.
+             *
+             * On odd planes, allow in-plane OE1 before/with downward movement.
+             */
+            if (cz % 2 == 1)
+                directions = routingOddEven1_DPStrict(current, destination);
+
+            if ((dz % 2 == 1) || (ez != 1))
+                directions.push_back(DIRECTION_DOWN);
+        }
+    }
+    else { // ez < 0, going UP
+        /*
+         * Preserve vertical gating:
+         * unaligned + even z-plane => in-plane OE0 only;
+         * otherwise => UP only.
+         */
+        if ((ex != 0 || ey != 0) && (cz % 2 == 0))
+            directions = routingOddEven0_DPStrict(current, destination);
+        else
+            directions.push_back(DIRECTION_UP);
+    }
+
+    for (unsigned int i = 0; i < directions.size(); i++) {
+        if (dir_out == directions[i])
+            return true;
+    }
+
+    return false;
+}
+
+
+bool DPNode::isMinimalOutput(int dir_out,
+                             const TCoord& current,
+                             const TCoord& destination)
+{
+    switch (dir_out) {
+    case DIRECTION_EAST:
+        return destination.x > current.x;
+
+    case DIRECTION_WEST:
+        return destination.x < current.x;
+
+    case DIRECTION_SOUTH:
+        return destination.y > current.y;
+
+    case DIRECTION_NORTH:
+        return destination.y < current.y;
+
+    case DIRECTION_DOWN:
+        return destination.z > current.z;
+
+    case DIRECTION_UP:
+        return destination.z < current.z;
+
+    default:
+        return false;
+    }
+}
+
+vector<int> DPNode::routingOddEvenDPStrict(const TCoord& current,
+                                           const TCoord& destination)
+{
+    vector<int> directions;
+
+    int c0 = current.x;
+    int c1 = current.y;
+
+    int d0 = destination.x;
+    int d1 = destination.y;
+
+    int e0 = d0 - c0;
+    int e1 = -(d1 - c1);
+
+    if (e0 == 0) {
+        if (e1 > 0)
+            directions.push_back(DIRECTION_NORTH);
+        else if (e1 < 0)
+            directions.push_back(DIRECTION_SOUTH);
+    }
+    else if (e0 > 0) { // destination is EAST
+        if (e1 == 0) {
+            directions.push_back(DIRECTION_EAST);
+        }
+        else {
+            /*
+             * Original source-sensitive condition:
+             *     (c0 % 2 == 1) || (c0 == s0)
+             *
+             * DP does not know true source column, so remove c0 == s0.
+             */
+            if (c0 % 2 == 1) {
+                if (e1 > 0)
+                    directions.push_back(DIRECTION_NORTH);
+                else
+                    directions.push_back(DIRECTION_SOUTH);
+            }
+
+            if ((d0 % 2 == 1) || (e0 != 1))
+                directions.push_back(DIRECTION_EAST);
+        }
+    }
+    else { // e0 < 0, destination is WEST
+        directions.push_back(DIRECTION_WEST);
+
+        if (c0 % 2 == 0) {
+            if (e1 > 0)
+                directions.push_back(DIRECTION_NORTH);
+            else if (e1 < 0)
+                directions.push_back(DIRECTION_SOUTH);
+        }
+    }
+
+    return directions;
+}
+
+vector<int> DPNode::routingOddEven0_DPStrict(const TCoord& current,
+                                             const TCoord& destination)
+{
+    vector<int> directions;
+
+    int c0 = current.x;
+    int c1 = current.y;
+
+    int d0 = destination.x;
+    int d1 = destination.y;
+
+    /*
+     * OE0 / row-wise orientation.
+     *
+     * Same convention as routingOddEven0():
+     *   e0 > 0 => destination is WEST
+     *   e0 < 0 => destination is EAST
+     *   e1 > 0 => destination is SOUTH
+     *   e1 < 0 => destination is NORTH
+     */
+    int e0 = -(d0 - c0);
+    int e1 = d1 - c1;
+
+    if (e1 == 0) {
+        if (e0 > 0)
+            directions.push_back(DIRECTION_WEST);
+        else if (e0 < 0)
+            directions.push_back(DIRECTION_EAST);
+    }
+    else if (e1 > 0) { // destination is SOUTH
+        if (e0 == 0) {
+            directions.push_back(DIRECTION_SOUTH);
+        }
+        else {
+            /*
+             * Original source-sensitive condition:
+             *     (c1 % 2 == 1) || (c1 == s1)
+             *
+             * DP does not know true source row, so remove c1 == s1.
+             */
+            if (c1 % 2 == 1) {
+                if (e0 > 0)
+                    directions.push_back(DIRECTION_WEST);
+                else
+                    directions.push_back(DIRECTION_EAST);
+            }
+
+            if ((d1 % 2 == 1) || (e1 != 1))
+                directions.push_back(DIRECTION_SOUTH);
+        }
+    }
+    else { // e1 < 0, destination is NORTH
+        directions.push_back(DIRECTION_NORTH);
+
+        if (c1 % 2 == 0) {
+            if (e0 > 0)
+                directions.push_back(DIRECTION_WEST);
+            else if (e0 < 0)
+                directions.push_back(DIRECTION_EAST);
+        }
+    }
+
+    return directions;
+}
+
+vector<int> DPNode::routingOddEven1_DPStrict(const TCoord& current,
+                                             const TCoord& destination)
+{
+    vector<int> directions;
+
+    int c0 = current.x;
+    int c1 = current.y;
+
+    int d0 = destination.x;
+    int d1 = destination.y;
+
+    /*
+     * OE1 / column-wise orientation.
+     *
+     * Same convention as routingOddEven1():
+     *   e0 > 0 => destination is EAST
+     *   e0 < 0 => destination is WEST
+     *   e1 > 0 => destination is NORTH
+     *   e1 < 0 => destination is SOUTH
+     */
+    int e0 = d0 - c0;
+    int e1 = -(d1 - c1);
+
+    if (e0 == 0) {
+        if (e1 > 0)
+            directions.push_back(DIRECTION_NORTH);
+        else if (e1 < 0)
+            directions.push_back(DIRECTION_SOUTH);
+    }
+    else if (e0 > 0) { // destination is EAST
+        if (e1 == 0) {
+            directions.push_back(DIRECTION_EAST);
+        }
+        else {
+            /*
+             * Preserve OE1 one-hop destination-column restriction,
+             * but remove source-column exception.
+             */
+            if ((d0 % 2 == 1) && (e0 == 1)) {
+                if (e1 > 0)
+                    directions.push_back(DIRECTION_NORTH);
+                else
+                    directions.push_back(DIRECTION_SOUTH);
+            }
+            else {
+                /*
+                 * Original source-sensitive condition:
+                 *     (c0 % 2 == 0) || (c0 == s0)
+                 *
+                 * DP does not know true source column, so remove c0 == s0.
+                 */
+                if (c0 % 2 == 0) {
+                    if (e1 > 0)
+                        directions.push_back(DIRECTION_NORTH);
+                    else
+                        directions.push_back(DIRECTION_SOUTH);
+                }
+
+                if ((d0 % 2 == 0) || (e0 != 1))
+                    directions.push_back(DIRECTION_EAST);
+            }
+        }
+    }
+    else { // e0 < 0, destination is WEST
+        directions.push_back(DIRECTION_WEST);
+
+        if (c0 % 2 == 1) {
+            if (e1 > 0)
+                directions.push_back(DIRECTION_NORTH);
+            else if (e1 < 0)
+                directions.push_back(DIRECTION_SOUTH);
+        }
+    }
+
+    return directions;
 }

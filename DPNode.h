@@ -35,6 +35,20 @@ SC_MODULE(DPNode)
  bool can_turnOddEvenNM(int dir_in, int dir_out, int dst_id);
  bool can_turnNegativeFirst(int dir_in, int dir_out, int dst_id);
  bool can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id);
+ 
+	bool isMinimalOutput(int dir_out,
+					 const TCoord& current,
+					 const TCoord& destination);
+
+	vector<int> routingOddEvenDPStrict(const TCoord& current,
+								   const TCoord& destination);
+
+	vector<int> routingOddEven0_DPStrict(const TCoord& current,
+									 const TCoord& destination);
+
+	vector<int> routingOddEven1_DPStrict(const TCoord& current,
+									 const TCoord& destination);
+									 
 
  vector<int> routingOddEven(const TCoord& current, const TCoord& source, const TCoord& destination);
  
