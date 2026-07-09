@@ -90,26 +90,6 @@ void DPNode::dpProcess()
 			if (can_turn(j, sorted_ports[i], dst_id) && dp_cost[j] > rx_dp_cost[sorted_ports[i]])
 				dp_cost[j] = rx_dp_cost[sorted_ports[i]];
 
-#ifdef DP_DEBUG
-if (dst_id == DP_WATCH_DST && local_id == 1) {
-    TCoord c = id2Coord(local_id);
-    TCoord d = id2Coord(dst_id);
-
-    std::cout << "current=(" << c.x << "," << c.y << "," << c.z << ") "
-              << "dst=(" << d.x << "," << d.y << "," << d.z << ")"
-              << std::endl;
-
-    for (int out = 0; out < DIRECTIONS; out++) {
-        std::cout << "out " << out << " minimal="
-                  << isMinimalOutput(out, c, d) << " : ";
-
-        for (int in = 0; in < DIRECTIONS; in++)
-            std::cout << in << "=" << can_turn(in, out, dst_id) << " ";
-
-        std::cout << std::endl;
-    }
-}
-#endif
 	
 	for (int i=0; i<DIRECTIONS; i++)
 	{
@@ -306,15 +286,16 @@ bool DPNode::can_turnOddEven(int dir_in, int dir_out, int dst_id)
      * In this direction convention, dir_in == dir_out means the packet
      * would immediately go back to the router it came from.
      */
-    if (dir_in == dir_out)
-        return false;
+	//if (local_id != dst_id &&
+	//	!isMinimalDirection(dir_in, current, destination, true))
+	//	return false;
 
-    /*
-     * DP must not propagate through non-minimal outputs.
-     */
-    if (!isMinimalOutput(dir_out, current, destination))
-        return false;
+	if (!isMinimalDirection(dir_out, current, destination, false))
+		return false;
 
+	if (dir_in == dir_out)
+		return false;
+	
     vector<int> directions;
 
     int cz = current.z;
@@ -1135,14 +1116,15 @@ bool DPNode::can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id)
      * In this direction convention, dir_in == dir_out means immediate
      * physical backtracking.
      */
-    if (dir_in == dir_out)
-        return false;
+	//if (local_id != dst_id &&
+	//	!isMinimalDirection(dir_in, current, destination, true))
+	//	return false;
 
-    /*
-     * Mandatory: DP must only propagate through minimal path outputs.
-     */
-    if (!isMinimalOutput(dir_out, current, destination))
-        return false;
+	if (!isMinimalDirection(dir_out, current, destination, false))
+		return false;
+
+	if (dir_in == dir_out)
+		return false;
 
     vector<int> directions;
 
@@ -1203,36 +1185,52 @@ bool DPNode::can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id)
 
     return false;
 }
-
-
-bool DPNode::isMinimalOutput(int dir_out,
-                             const TCoord& current,
-                             const TCoord& destination)
+bool DPNode::isMinimalDirection(int dir,
+                                const TCoord& current,
+                                const TCoord& destination,
+                                bool incoming)
 {
-    switch (dir_out) {
+    switch (dir) {
     case DIRECTION_EAST:
-        return destination.x > current.x;
+        if (incoming)
+            return destination.x <= current.x;  // came from east, moved west
+        else
+            return destination.x > current.x;   // go east
 
     case DIRECTION_WEST:
-        return destination.x < current.x;
+        if (incoming)
+            return destination.x >= current.x;  // came from west, moved east
+        else
+            return destination.x < current.x;   // go west
 
     case DIRECTION_SOUTH:
-        return destination.y > current.y;
+        if (incoming)
+            return destination.y <= current.y;  // came from south, moved north
+        else
+            return destination.y > current.y;   // go south
 
     case DIRECTION_NORTH:
-        return destination.y < current.y;
-
-    case DIRECTION_DOWN:
-        return destination.z > current.z;
+        if (incoming)
+            return destination.y >= current.y;  // came from north, moved south
+        else
+            return destination.y < current.y;   // go north
 
     case DIRECTION_UP:
-        return destination.z < current.z;
+        if (incoming)
+            return destination.z <= current.z;  // came from up, moved down
+        else
+            return destination.z < current.z;   // go up
+
+    case DIRECTION_DOWN:
+        if (incoming)
+            return destination.z >= current.z;  // came from down, moved up
+        else
+            return destination.z > current.z;   // go down
 
     default:
         return false;
     }
 }
-
 vector<int> DPNode::routingOddEvenDPStrict(const TCoord& current,
                                            const TCoord& destination)
 {
