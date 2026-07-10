@@ -1,0 +1,82 @@
+To make your SystemC analysis with Claude highly efficient, you need to eliminate repetitive prompting and work around Claude's memory limitations (context window tokens). Large SystemC projects with multiple .cpp and .hpp files can quickly overwhelm a chat session. [1, 2] 
+Here is a blueprint to optimize your workflow using your existing GitHub repo and Claude Project.
+------------------------------
+## 1. Automate Code Feeding (The GitHub Action Method)
+Instead of copying and pasting individual files, combine your codebase into a single, structured markdown file that Claude can digest instantly. [3] 
+You can automate this by adding a GitHub Action to your repository. Every time you push code, it will automatically update a single codebase.md file that you can drop straight into your Claude Project knowledge base. [4, 5, 6, 7] 
+Create a file in your repo at .github/workflows/combine-code.yml:
+
+name: Combine SystemC Codeon: [push]jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Combine files
+        run: |
+          echo "# SystemC Codebase Snapshot" > codebase.md
+          find . -type f \( -name "*.cpp" -o -name "*.hpp" -o -name "*.h" \) ! -path "*/.*" | while read file; do
+            echo -e "\n## File: $file\n\`\`\`cpp" >> codebase.md
+            cat "$file" >> codebase.md
+            echo -e "\n\`\`\`" >> codebase.md
+          done      - name: Commit codebase file
+        run: |
+          git config --global user.name 'Github Bot'
+          git config --global user.email 'bot@github.com'
+          git add codebase.md
+          git commit -am "Update codebase snapshot" || exit 0
+          git push
+
+
+* Why this is efficient: You download just one file (codebase.md) from your GitHub repo and upload it to your Claude Project. It includes all headers and source files cleanly separated by Markdown tags. [8, 9, 10] 
+
+------------------------------
+## 2. Set Up Custom Instructions in your Claude Project
+Don't waste time telling Claude what SystemC is or explaining your research goals in every new chat. Use the Custom Instructions feature inside your Claude Project settings. [11, 12] 
+Paste a template like this into the Project Instructions:
+
+Role: You are an expert hardware modeling engineer specializing in SystemC (IEEE 1666), TLM-2.0, and discrete-event simulation architectures.
+
+Context: I am working on a research project titled [Insert Project Name]. The core goals are [Insert 1-2 sentence goal, e.g., optimizing latency / testing NoC throughput].
+
+Analysis Rules:
+1. When evaluating code, always check for SystemC-specific issues: channel synchronization, event/wait race conditions, SC_METHOD vs SC_THREAD misuse, and improper use of sensitive loops.
+2. Verify TLM-2.0 compliance (blocking vs non-blocking transport, payload event queues) if applicable.
+3. Keep responses highly modular. Suggest structural improvements first, then provide code snippets.
+4. If a suggested fix changes multiple modules, clearly map out the structural dependencies.
+
+------------------------------
+## 3. Use "Chunked" Query Blueprints
+SystemC simulations are prone to hidden bottlenecks (e.g., infinite loops in SC_THREAD without a wait(), or excessive delta-cycle evaluation). To get the best answers, target your questions using specific analysis lenses: [13] 
+
+* For Bottlenecks: "Using the uploaded codebase.md, analyze the execution loops of my SC_THREADs. Are there places where unnecessary delta-cycles are being triggered, or where data caching could speed up the simulation time?"
+* For Correctness: "Scan the module interfaces. Are there any race conditions between my sc_signal writes and reads across clock boundaries?"
+* For Modularity: "I want to scale this simulation. Is the communication between Module A and Module B tightly coupled? Suggest how to refactor this using TLM-2.0 sockets to improve simulation speed."
+
+------------------------------
+## 4. Create an Evaluation Log File
+As Claude suggests changes, do not just apply them blindly. Keep an eval_log.md file in your Claude Project knowledge base. [14, 15] 
+
+* Every time Claude successfully solves a bug or improves simulation speed, ask Claude: "Summarize the fix we just made to the SystemC scheduler handling so I can add it to our Project Log."
+* Update that text file in your Project. This ensures Claude remembers previous engineering decisions even if you start a completely fresh chat session. [16, 17, 18, 19] 
+
+To tailor this setup, what is the core metric you are evaluating in your SystemC simulation (e.g., simulation execution speed, hardware accuracy, or TLM compliance)? Let me know, and I can write a highly specific analysis prompt for it.
+
+[1] [https://www.mindstudio.ai](https://www.mindstudio.ai/blog/claude-code-for-non-coders-concepts-explained)
+[2] [https://www.linkedin.com](https://www.linkedin.com/pulse/using-claude-35-research-rapid-access-vast-knowledge-limits-brodie-yf1he)
+[3] [https://gist.github.com](https://gist.github.com/liamdarmody/4aba083c26ccb1b3b0f1068ec185ef66)
+[4] [https://medium.com](https://medium.com/codetodeploy/how-to-get-great-results-with-claude-code-d251d789ce91)
+[5] [https://medium.com](https://medium.com/data-science-collective/the-complete-guide-to-ai-agent-memory-files-claude-md-agents-md-and-beyond-49ea0df5c5a9)
+[6] [https://www.freecodecamp.org](https://www.freecodecamp.org/news/how-to-build-software-factory-with-claude-code/)
+[7] [https://www.instagram.com](https://www.instagram.com/reel/DVzZZJCDwvd/)
+[8] [https://aiforcontentmarketing.ai](https://aiforcontentmarketing.ai/how-to-make-claude-write-like-you-the-interview-method/)
+[9] [https://www.xda-developers.com](https://www.xda-developers.com/gave-up-notebooklm-for-claude-projects/)
+[10] [https://www.guvi.in](https://www.guvi.in/blog/claude-code-tutorial/)
+[11] [https://www.instagram.com](https://www.instagram.com/reel/DZXKYt-NWBY/)
+[12] [https://www.linkedin.com](https://www.linkedin.com/posts/hamna-aslam-kahn_claude-can-remember-you-write-like-you-activity-7462838293739581440-J4rb)
+[13] [https://singularitykchen.github.io](https://singularitykchen.github.io/blog/2020/06/12/SystemC-and-Its-Simulation-Kernel/)
+[14] [https://testcollab.com](https://testcollab.com/claude-code-for-qa-testing)
+[15] [https://www.mindstudio.ai](https://www.mindstudio.ai/blog/how-to-manage-claude-session-limits)
+[16] [https://bengrab.au](https://bengrab.au/how-i-get-the-most-out-of-claude-code/)
+[17] [https://www.freecodecamp.org](https://www.freecodecamp.org/news/claude-code-handbook/)
+[18] [https://waleedk.medium.com](https://waleedk.medium.com/claude-code-top-tips-lessons-from-the-first-20-hours-246032b943b4)
+[19] [https://bossanova.uk](https://bossanova.uk/jspreadsheet/blog/claude-code-jspreadsheet-tutorial)

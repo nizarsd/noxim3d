@@ -69,13 +69,13 @@ void DPNode::dpProcess()
 		
 		return;
 	}
-
+	int HOP_COST = 100;
 	// RELAX (every cycle of the dwell): dp_rx holds neighbours' stored costs for
 	// this dst_id, coherent because all nodes hold the same dst_id for the window.
 	int rx_dp_cost[DIRECTIONS];
 	for (int i=0; i<DIRECTIONS; i++)
 		rx_dp_cost[i] = (dp_rx[i] >= BIG_VALUE) ? BIG_VALUE
-		              : (int)(dp_rx[i]*alpha) + frozen_local_cost[i] + 1;
+		              : (int)(dp_rx[i]*alpha) + frozen_local_cost[i] + HOP_COST;
 
 	int sorted_ports[] = {0,1,2,3,4,5};
 	BubbleSort(rx_dp_cost, sorted_ports);       // ports ordered by ascending cost

@@ -1296,8 +1296,8 @@ void TRouter::cost_to_go()
 		int maxb = TGlobalParams::buffer_depth;
 		for (int d = 0; d < DIRECTIONS; d++) {
 			// avg occupancy as a percentage of buffer, computed without losing the fraction
-			int avg_pct = channel_samples ? (100 * channel_load[d]) / (channel_samples) : 0;
-			dp_channel_cost[d] = avg_pct;   // 0..100, keeps sub-integer averages
+			dp_channel_cost[d]  = channel_samples ? (100 * channel_load[d]) / (channel_samples * maxb):0;    // bounds to [0,100] by construction
+			//dp_channel_cost[d]  = channel_samples ? (100 * channel_load[d]) / (channel_samples) : 0;
 			local_dp_cost[d].write(dp_channel_cost[d]);
 						channel_load[d] = 0;
 		}
