@@ -2,22 +2,24 @@ STAGE 1 LOG - DP VS BUFFERLEVEL VALIDATION AND CHARACTERISATION
 Project: 3D NoC / Noxim3D Stage 1 validation
 Focus: Balanced odd-even routing + distributed DP selection unit vs bufferlevel selection
 Traffic: synthetic traffic, mainly transpose1
+Main routing baseline: oddevenbalanced
 Selection policies compared: DP and bufferlevel
-Main corrected setting for small 5x5x3 runs: CINTERVAL = DP_CYCLE
+Main corrected setting for small/medium runs: CINTERVAL = DP_CYCLE
+Updated: 2026-07-10
 
 ======================================================================
 1. DP VS BUFFERLEVEL BEHAVIOUR AND WHEN DP PROVES GOOD
 ======================================================================
 
 Main observation:
-DP does not mainly improve performance in the low-load region. At low PIR, the network is lightly congested, so both DP and bufferlevel selection have similar behaviour. DP becomes useful when the network approaches the congestion knee, where local queue-state selection is no longer sufficient.
+DP does not mainly improve performance in the low-load region. At low PIR, the network is lightly congested, so both DP and bufferlevel selection behave similarly. DP becomes useful when the NoC approaches the congestion knee, where local queue-state selection is no longer sufficient.
 
 Reason:
 Bufferlevel is a local heuristic. It chooses based on immediate neighbouring buffer state. This is effective when congestion is weak or spatially shallow, but it can fail near the knee because a locally free direction may still lead into a globally congested region.
 
 DP is a multi-hop cost-to-go metric. It propagates a congestion-aware cost field over the NoC, so the selection unit can avoid directions that are locally acceptable but globally expensive.
 
-Final 5x5x3 full sweep, CINTERVAL = DP_CYCLE:
+Final confirmed 5x5x3 full sweep, CINTERVAL = DP_CYCLE:
 
 PIR      BL delay   DP delay   DP delay reduction   DP wins   Throughput change   Energy change
 0.016    20.72      18.99      8.35%                3/3       +0.02%              -2.22%
@@ -38,6 +40,10 @@ At PIR = 0.025 for 5x5x3:
 BL delay = 454.33
 DP delay = 97.78
 DP delay reduction = 78.48%
+DP wins = 3/3 seeds
+
+Reassurance rerun:
+A later 5x5x3 rerun reproduced the same values up to rounding. This confirms that the known good DP behaviour is stable and that no later code/settings change broke the 5x5x3 reference case.
 
 Conclusion for point 1:
 DP proves good around the congestion knee. It is less important at low load and less dominant in deep saturation. Its value is strongest when congestion is forming but has not yet overwhelmed the network.
@@ -96,17 +102,23 @@ DP benefit is not an artefact of one buffer size. It persists under buffer depth
 Representative milestone configurations:
 
 Config    Nodes   Representative PIR   BL delay   DP delay   DP delay reduction   Interpretation
-5x5x3    75      0.025                454.33     97.78      78.48%               Strong DP gain at knee
-5x5x4    100     0.014                40.04      26.63      33.50%               Moderate DP gain at early knee
-8x8x3    192     0.016                458.68     130.60     71.53%               Strong DP gain at knee
+3x3x3     27      0.030                127.16     89.23      29.83%               Moderate/narrow DP window
+4x4x3     48      0.025                72.22      22.74      68.51%               Strong DP-friendly knee
+4x4x4     64      0.025                230.97     193.19     16.36%               Weak/moderate DP benefit
+4x4x5     80      0.022                57.92      51.03      11.91%               Weak DP benefit
+5x5x3     75      0.025                454.33     97.78      78.48%               Strong DP gain at knee
+5x5x4     100     0.014                39.61      26.39      33.39%               Moderate DP gain at early knee
+6x6x4     144     0.014                142.37     62.89      55.83%               Stronger z=4 case as x-y widens
+8x8x3     192     0.016                458.68     130.60     71.53%               Strong DP gain at knee
 
-Detailed 5x5x4 knee check:
+Detailed 5x5x4 confirmed knee check:
 
 PIR      BL delay   DP delay   DP delay reduction   DP wins   Interpretation
-0.010    18.64      17.16      7.95%                3/3       Low-load region
-0.012    23.20      19.95      14.00%               3/3       Early congestion
-0.014    40.04      26.63      33.50%               3/3       Representative knee point
-0.016    170.50     128.73     24.50%               3/3       Post-knee / heavier congestion
+0.012    23.04      19.97      13.32%               3/3       Early congestion
+0.014    39.61      26.39      33.39%               3/3       Representative knee point
+0.016    155.51     119.05     23.45%               3/3       Post-knee / heavier congestion
+0.018    333.36     307.55     7.74%                3/3       Deeper saturation
+0.020    627.86     592.70     5.60%                3/3       Deep saturation
 
 Detailed 8x8x3 combined result:
 
@@ -128,7 +140,120 @@ Conclusion for point 3:
 DP is effective across different NoC configurations, but the magnitude of improvement depends on topology, z dimension, traffic pressure, and where the selected PIR sits relative to the knee. The correct conclusion is not that DP always scales monotonically better with size. The correct conclusion is that DP is a valid multi-hop congestion-aware baseline whose advantage appears when local bufferlevel decisions become insufficient.
 
 ======================================================================
-4. MILESTONE RESULTS AND SIGNIFICANT FINDINGS
+4. ROUTING SUBSTRATE RESULT: PLAIN ODDEVEN VS ODDEVENBALANCED
+======================================================================
+
+Experiment:
+Plain oddeven routing was compared against oddevenbalanced on the 5x5x3 configuration using the same PIR range as the final 5x5x3 baseline.
+
+Plain oddeven result:
+
+PIR      OE+BL delay   OE+DP delay   DP improvement under OE   DP wins
+0.016    55.83         31.27         44.00%                    3/3
+0.018    133.88        45.30         66.17%                    3/3
+0.020    286.80        55.76         80.56%                    3/3
+0.025    702.06        347.76        50.47%                    3/3
+0.030    1830.63       1548.32       15.42%                    3/3
+0.035    2735.86       2530.33       7.51%                     3/3
+0.040    3521.65       3369.14       4.33%                     3/3
+
+Plain oddeven vs oddevenbalanced absolute-delay comparison:
+
+PIR      OE+BL   OEB+BL   OEB gain for BL   OE+DP   OEB+DP   OEB gain for DP
+0.016    55.83   20.72    62.89%            31.27   18.99    39.27%
+0.018    133.88  26.72    80.04%            45.30   21.86    51.74%
+0.020    286.80  37.03    87.09%            55.76   25.38    54.48%
+0.025    702.06  454.33   35.29%            347.76  97.78    71.88%
+0.030    1830.63 1535.84  16.10%            1548.32 1263.67  18.38%
+0.035    2735.86 2386.29  12.78%            2530.33 2157.06  14.75%
+0.040    3521.65 3107.29  11.77%            3369.14 2953.26  12.34%
+
+Interpretation:
+The balanced routing substrate itself improves performance. Plain oddeven enters congestion earlier under the tested 5x5x3 transpose workload. Oddevenbalanced reduces delay for both bufferlevel and DP selection.
+
+Important correction:
+Plain oddeven sometimes shows large DP improvement percentages because plain OE+BL is already very poor. This does not mean plain OE is better. In absolute delay, oddevenbalanced+DP is the best combination.
+
+Conclusion:
+The best Stage 1 combination is oddevenbalanced routing with DP selection. Balanced routing improves the routing substrate, while DP improves selection near the congestion knee.
+
+======================================================================
+5. Z-PARITY, Z-DEPTH, AND 3D ASPECT-RATIO FINDINGS
+======================================================================
+
+Initial hypothesis:
+The lower DP improvement in 5x5x4 compared with 5x5x3 may be related to the even number of z-planes. In oddevenbalanced routing, adjacent planes alternate orientation. With an odd number of planes, one orientation has majority representation; with an even number of planes, OE0/OE1 are equally represented.
+
+Updated evidence:
+The later 4x4x3, 4x4x4, 4x4x5, and 6x6x4 results show that z parity alone is not enough to explain DP behaviour.
+
+Odd/even and z-depth comparison:
+
+Config    z planes   Representative PIR   BL delay   DP delay   DP reduction   Conclusion
+4x4x3     3          0.025                72.22      22.74      68.51%         Strong DP-friendly knee
+4x4x4     4          0.025                230.97     193.19     16.36%         Weak/moderate DP benefit
+4x4x5     5          0.022                57.92      51.03      11.91%         Weak DP benefit
+
+Interpretation:
+- 4x4x3 is DP-friendly.
+- 4x4x4 and 4x4x5 are not strongly DP-friendly.
+- Therefore, the simple hypothesis "odd z good, even z bad" is not supported.
+
+Focused 4x4x4 result:
+
+PIR      BL delay   DP delay   DP reduction   DP wins
+0.020    26.45      26.09      1.37%          2/3
+0.021    30.89      30.99      -0.32%         1/3
+0.022    39.56      42.95      -8.58%         1/3
+0.023    57.09      58.35      -2.21%         1/3
+0.024    130.76     105.85     19.05%         1/3
+0.025    230.97     193.19     16.36%         2/3
+
+Note:
+The 0.024 point has the highest mean improvement but is seed-sensitive. The 0.025 point is a safer representative point.
+
+Focused 4x4x5 result:
+
+PIR      BL delay   DP delay   DP reduction   DP wins
+0.020    31.20      29.65      4.95%          3/3
+0.021    35.26      37.67      -6.83%         1/3
+0.022    57.92      51.03      11.91%         2/3
+0.023    101.61     94.79      6.71%          1/3
+0.024    164.25     201.52     -22.69%        1/3
+0.025    369.50     342.85     7.21%          2/3
+
+Interpretation:
+The 4x4x5 focused sweep does not reveal a strong hidden DP-friendly knee. DP behaviour is weak and unstable in this topology.
+
+Z=4 aspect-ratio test:
+The z=4 comparison isolates whether z=4 itself is the problem or whether the issue is the relative z-depth compared with x-y width.
+
+Config    Representative PIR   BL delay   DP delay   DP reduction   Interpretation
+4x4x4     0.025                230.97     193.19     16.36%         Weak/moderate
+5x5x4     0.014                39.61      26.39      33.39%         Moderate
+6x6x4     0.014                142.37     62.89      55.83%         Strong
+
+Detailed 6x6x4 result:
+
+PIR      BL delay   DP delay   DP reduction   DP wins   Throughput change   Energy change
+0.006    16.83      16.53      1.80%          3/3       +0.09%              -0.85%
+0.008    18.80      18.25      2.92%          3/3       +0.07%              -1.01%
+0.010    22.32      20.66      7.44%          3/3       +0.04%              -1.30%
+0.012    34.42      31.05      9.78%          3/3       -0.03%              -1.48%
+0.014    142.37     62.89      55.83%         3/3       +0.23%              -1.77%
+0.016    736.29     664.18     9.79%          2/3       +0.23%              -0.72%
+
+Aspect-ratio conclusion:
+The weak DP behaviour in 4x4x4 is not because z=4 itself is bad. As x-y width increases while z remains fixed at 4, DP benefit increases:
+4x4x4 -> weak/moderate
+5x5x4 -> moderate
+6x6x4 -> strong
+
+This supports the aspect-ratio hypothesis:
+DP performs better when the 3D mesh has enough horizontal path diversity. When z is large relative to x and y, the topology becomes more vertically constrained or less favourable to DP's cost-to-go decisions. DP benefit therefore depends on 3D aspect ratio and congestion structure, not z parity alone.
+
+======================================================================
+6. MILESTONE RESULTS AND SIGNIFICANT FINDINGS
 ======================================================================
 
 Milestone A - DP implementation corrected:
@@ -190,17 +315,37 @@ Buffer 32: 55.85% delay reduction
 Significance:
 The DP benefit is robust across buffer depths and is not restricted to one buffer configuration.
 
-Milestone G - NoC-size/configuration comparison:
+Milestone G - Routing substrate result:
+Plain oddeven enters congestion earlier than oddevenbalanced in 5x5x3. Oddevenbalanced improves both bufferlevel and DP absolute delay. The best combination is oddevenbalanced + DP.
+
+Significance:
+The balanced routing method is not merely a neutral substrate; it improves the routing baseline itself.
+
+Milestone H - NoC-size/configuration comparison:
 Representative knee improvements:
+3x3x3: 29.83%
+4x4x3: 68.51%
+4x4x4: 16.36%
+4x4x5: 11.91%
 5x5x3: 78.48%
-5x5x4: 33.50%
+5x5x4: 33.39%
+6x6x4: 55.83%
 8x8x3: 71.53%
 
 Significance:
 DP improvement is not universal or monotonic with NoC size. It depends on how each configuration enters congestion. This is an important scientific finding because it prevents overclaiming.
 
+Milestone I - 3D aspect-ratio finding:
+The z=4 sequence shows improvement increasing as x-y width grows:
+4x4x4: 16.36%
+5x5x4: 33.39%
+6x6x4: 55.83%
+
+Significance:
+The issue is not simply even z or z=4. DP benefits more when the x-y plane is wide enough to provide usable horizontal path diversity. Narrow, z-heavy topologies can restrict the effective alternatives available to DP.
+
 ======================================================================
-FULL STAGE 1 CONCLUSION
+FULL UPDATED STAGE 1 CONCLUSION
 ======================================================================
 
 Stage 1 can be concluded as a validation and baseline-characterisation stage.
@@ -209,22 +354,30 @@ The simulator now includes a corrected deadlock-free balanced odd-even routing s
 
 The experimental evidence shows that DP selection is a valid multi-hop congestion-aware baseline. Its strongest advantage appears near the congestion knee, where local bufferlevel selection can make poor decisions because it sees only immediate queue state. Around the knee, DP can substantially reduce average delay by using a propagated cost field that captures downstream congestion.
 
-The final 5x5x3 run with CINTERVAL = DP_CYCLE gives the clearest result:
-At PIR = 0.025, bufferlevel delay is 454.33 cycles, while DP delay is 97.78 cycles, corresponding to a 78.48% delay reduction. DP also wins all three seeds at this point.
+The final 5x5x3 run with CINTERVAL = DP_CYCLE gives the clearest repeatable result:
+At PIR = 0.025, bufferlevel delay is 454.33 cycles, while DP delay is 97.78 cycles, corresponding to a 78.48% delay reduction. DP wins all three seeds at this point, and a later rerun reproduced the same result.
 
 The 8x8x3 configuration confirms that this behaviour can also appear in a larger NoC. At PIR = 0.016, DP reduces delay from 458.68 to 130.60 cycles, a 71.53% reduction.
 
 The buffer-depth sweep confirms that the DP benefit is not limited to a single buffer size. DP remains better under buffer sizes 8, 16, and 32, although the relative improvement decreases when larger buffers absorb some congestion.
 
-The 5x5x4 result provides an important counterbalance. Although DP still improves performance, the representative knee improvement is only 33.50%. This suggests that the additional z-layer softens the congestion knee and gives bufferlevel more spatial/path diversity, making local selection less fragile in that configuration. Therefore, DP benefit is topology- and knee-dependent.
+The routing comparison confirms that oddevenbalanced is a better routing substrate than plain oddeven for the tested 5x5x3 transpose workload. Plain oddeven enters congestion earlier, while oddevenbalanced reduces absolute delay for both bufferlevel and DP. The best tested combination is oddevenbalanced + DP.
+
+The topology comparison gives the most important scientific nuance. DP does not improve uniformly across all NoC sizes. Some configurations are strongly DP-friendly, such as 5x5x3, 4x4x3, 6x6x4, and 8x8x3. Other configurations, especially 4x4x4 and 4x4x5, show weak or unstable DP benefit.
+
+The earlier hypothesis that odd/even z-plane parity alone controls DP behaviour is not supported. 4x4x3 is strong, but 4x4x5 is weak even though both have odd z. The better explanation is a 3D aspect-ratio and congestion-structure effect. When z increases while x and y remain narrow, the topology can become vertically constrained or less favourable to DP's cost-to-go decisions. When the x-y plane widens while z remains fixed, DP benefit increases again, as shown by the z=4 sequence:
+4x4x4 -> 16.36%
+5x5x4 -> 33.39%
+6x6x4 -> 55.83%
 
 The correct scientific claim for Stage 1 is therefore:
 
-Corrected DP selection is a valid and effective multi-hop congestion-aware baseline. It can significantly outperform bufferlevel near the congestion knee, but its advantage is not universal, not monotonic with NoC size, and not guaranteed to grow automatically with dimensionality. Its benefit depends on network configuration, traffic pressure, buffer size, and the position of the operating point relative to the knee.
+Corrected DP selection is a valid and effective multi-hop congestion-aware baseline. It can significantly outperform bufferlevel near the congestion knee, but its advantage is not universal, not monotonic with NoC size, and not guaranteed to grow automatically with dimensionality. Its benefit depends on routing substrate, network configuration, buffer size, 3D aspect ratio, traffic pressure, and the position of the operating point relative to the congestion knee.
 
 The negative finding is also valuable:
-Stage 1 does not prove that hand-tuned DP universally scales better than bufferlevel. Instead, it establishes DP and bufferlevel as characterised, valid baselines for later stages.
+Stage 1 does not prove that hand-tuned DP universally scales better than bufferlevel. Instead, it establishes DP and bufferlevel as characterised, valid baselines and identifies when DP is most useful.
 
 Stage 1 is therefore sufficiently concluded.
 The recommended next step is Stage 2: DNN traffic trace generation.
-Future RL stages can use these results as a baseline and investigate whether learned value functions can provide a stronger adaptive multi-hop metric than the hand-tuned DP cost field.
+Future RL stages can use these results as a baseline and investigate whether learned value functions can provide a stronger adaptive multi-hop metric than the hand-tuned DP cost field, especially in configurations where DP reacts late, is constrained by topology, or loses effectiveness in deep saturation.
+
