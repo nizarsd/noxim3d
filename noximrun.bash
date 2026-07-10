@@ -3,17 +3,17 @@ set -euo pipefail
 
 BIN=${BIN:-./noxim}
 
-DIMX=${DIMX:-5}
-DIMY=${DIMY:-5}
+DIMX=${DIMX:-4}
+DIMY=${DIMY:-4}
 DIMZ=${DIMZ:-3}
 
-ROUTING=${ROUTING:-oddeven}
-TRAFFIC=${TRAFFIC:-transpose1}
+ROUTING=${ROUTING:-oddevenbalanced}
+TRAFFIC=${TRAFFIC:-transpose2}
 
-#PIR_LIST=${PIR_LIST:-"0.016 0.018 0.02 0.025 0.03 0.035 0.04"}
+PIR_LIST=${PIR_LIST:-"0.016 0.018 0.02 0.025 0.03 0.035 0.04"} # 5 5 3
 
 # PIR_LIST=${PIR_LIST:-"0.006 0.008 0.010 0.012 0.014"}
- PIR_LIST=${PIR_LIST:-"0.016 0.018 0.020 0.025 0.030 0.035 0.040"}
+PIR_LIST=${PIR_LIST:-"0.012 0.014 0.016  0.018"}
 SEEDS=${SEEDS:-"2 6 10"}
 
 OUTDIR=${OUTDIR:-results_compare_dp_bufferlevel}
