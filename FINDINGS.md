@@ -1,0 +1,96 @@
+# Noxim3D — Research Findings: DP vs bufferlevel
+
+Rolling record of the DP-vs-BL selection study on odd-even-balanced routing.
+Engineering/perf notes are in [PERFORMANCE.md](PERFORMANCE.md).
+
+Fixed conditions unless stated: routing `oddevenbalanced`, traffic `transpose1`,
+Poisson injection, buffer 16, seeds {2, 6, 10}.
+
+---
+
+## Experimental method
+
+- **DP-aware timing** (derived from mesh, single source of truth in
+  [NoximDefs.h](NoximDefs.h)):
+  - `DP_DWELL = diameter + 3`, `diameter = (X-1)+(Y-1)+(Z-1)`
+  - `DP_CYCLE = 2 · nodes · DP_DWELL` (converge + settle)
+  - `CINTERVAL = DP_CYCLE` (congestion cost recomputed once per DP reconfiguration)
+  - `WARMUP = 3 · DP_CYCLE`, `SIM = 20 · DP_CYCLE`
+  - Rationale: warmup must cover DP field warm-up (~1 DP_CYCLE) + network fill;
+    3× is comfortably above the real settling time (measured ~2–3× for these sizes).
+- **Workflow:** coarse 1-seed knee-finder → 3-seed fine sweep centred on the knee.
+- **Caveat learned the hard way:** a coarse grid can *step over a sharp peak*.
+  It agreed with the fine sweep for 8×8×3 (peak near a coarse point) but badly
+  under-reported 4×4×3 (peak at 0.036 fell between coarse points 0.035/0.040,
+  giving +10.9% instead of the true +33%). Always fine-sweep before trusting a peak.
+- **NaN gotcha (fixed):** before the odd-even-balanced fix, NaN delay/throughput
+  meant a *routing stall*, not a warmup problem — the buggy `routingOddEven1()`
+  stalled the network so no packets were received in the measured interval →
+  divide-by-zero. Long warmup only exposed it earlier. See
+  [PERFORMANCE.md](PERFORMANCE.md) §1. If NaN reappears, suspect routing/deadlock,
+  not the timing.
+- **DP convergence check:** the cost-to-go field reaches exact hop-distance costs
+  (100·hops + accumulated buffer-occupancy congestion) within `hop_distance`
+  cycles and holds stable through the dwell window — verified via `-DDP_DEBUG`.
+
+## Headline result — size × parity (Z = 3 series)
+
+Peak = best DP delay reduction vs BL near the knee. "Past-knee" = behaviour once
+past the congestion knee into saturation.
+
+| mesh | X/Y parity | diameter | knee (PIR) | peak DP benefit | quality | past-knee |
+|------|-----------|----------|-----------|-----------------|---------|-----------|
+| 4×4×3 | even | 8  | ~0.036 | **+33.1%** @0.036 | fine | reverses (~0.042) |
+| 5×5×3 | odd  | 10 | ~0.025 | **+64%**   @0.022–0.025 | fine | wins through |
+| 6×6×3 | even | 12 | ~0.020 | **+68.2%** @0.021 | fine | reverses (~0.024) |
+| 7×7×3 | odd  | 14 | ~0.014 | **+82.4%** @0.015 | coarse | wins wide (to ~0.021) |
+| 8×8×3 | even | 16 | ~0.014 | **+75.8%** @0.014 | fine (3-seed) | reverses (~0.018) |
+
+### Two robust conclusions
+
+1. **Peak DP benefit scales with size/diameter within a parity class.**
+   - Even series: +33% (d8) → +68% (d12) → +76% (d16).
+   - Odd series: +64% (d10) → +82% (d14).
+   - Odd meshes also sit *above* the even trend at comparable diameter (a parity
+     boost): odd d14 (+82%) tops even d16 (+76%).
+
+2. **X/Y parity governs past-knee behaviour.**
+   - **Odd × odd** meshes (5, 7) sustain DP's win over a *wide* band past the knee.
+   - **Even × even** meshes (4, 6, 8) reverse to a DP *loss* just past the knee,
+     then converge back toward tied in deep saturation (both policies overloaded).
+
+### Why (mechanism, partly hypothesis)
+
+DP's value is global, multi-hop congestion awareness; BL sees only one hop.
+That value grows with (a) path length / diameter, (b) congestion depth, and
+(c) path diversity. Larger meshes have more of all three → bigger peak. The
+odd/even split is a property of the **odd-even-balanced routing**, whose turn
+legality branches on coordinate parity — odd×odd geometries give DP more usable
+path diversity past the knee, so it keeps winning; even geometries run out of
+alternative paths in saturation and DP's rerouting churn then hurts.
+
+*Confounds controlled:* the size series holds Z = 3 and X = Y, isolating X/Y
+parity. The apparent "5×5×3 is an outlier / size doesn't scale" seen early on was
+an artifact of comparing a coarse 6×6×3 peak to a fine 5×5×3 peak — it dissolved
+once both had fine data.
+
+## Below the knee
+
+At low PIR both policies behave similarly; DP can be marginally *worse* (its
+coarser per-cycle direction updates cost a few cycles of latency with no
+congestion to route around). DP only pays off from the knee onward.
+
+## Open items
+
+- **7×7×3 peak is coarse-only** (+82.4%) — fine-sweep 0.013–0.016 to confirm.
+- **Deep-saturation reversal point of odd meshes** — 5×5×3 only swept to 1.2×
+  knee; push further to locate where it finally reverses.
+- **Isolate DP-vs-routing:** re-run one odd/even pair under a parity-agnostic
+  routing (e.g. `fullyadaptive`) to confirm the parity split is routing-induced.
+- **Mechanism test:** instrument per-link load-balance (coefficient of variation)
+  to directly test the path-diversity explanation for the even-mesh reversal.
+
+## Log
+
+- 4×4×3, 5×5×3, 6×6×3, 7×7×3, 8×8×3 swept (Z=3). Raw CSVs in `results_knee_*`
+  (gitignored — regenerate). Peaks/knees as tabulated above.
