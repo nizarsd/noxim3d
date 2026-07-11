@@ -91,9 +91,9 @@ SC_MODULE(TRouter)
   void               txProcess();        // The transmitting process
   void               bufferMonitor();
   void               routing_directionsUpdater();  // to update the routing direction inside the router
-  void               configure(const int _id, const double _warm_up_time,
-			       const unsigned int _max_buffer_size,
-			       TGlobalRoutingTable& grt);
+  void               configure( const int _id, const double _warm_up_time,
+			                          const unsigned int _max_buffer_size,
+			                          TGlobalRoutingTable& grt);
 
   unsigned long getRoutedFlits(); // Returns the number of routed flits 
 

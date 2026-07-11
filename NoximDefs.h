@@ -218,10 +218,10 @@ inline int dp_diameter()
          + (TGlobalParams::mesh_dim_z - 1);
 }
 
-inline int dp_dwell()   { return dp_diameter() + 3; }              // cycles per destination
-inline int dp_pass()    { return dp_dwell() * dp_no_dst(); }        // full converge sweep
-inline int dp_settle()  { return dp_pass(); }                 // network-settle window (tune)
-inline int dp_cycle()   { return dp_pass() + dp_settle(); }        // full reconfiguration period
+inline int dp_dwell()   { return dp_diameter() + 3; }             // cycles per destination
+inline int dp_pass()    { return dp_dwell() * dp_no_dst(); }      // full converge sweep
+inline int dp_settle()  { return dp_pass(); }                     // network-settle window (tune)
+inline int dp_cycle()   { return dp_pass() + dp_settle(); }       // full reconfiguration period
 
 //---------------------------------------------------------------------------
 // TCoord -- XYZ coordinates type of the Tile inside the Mesh
@@ -237,6 +237,26 @@ class TCoord
     return (coord.x==x && coord.y==y && coord.z==z);
   }
 };
+
+// Minimal 3D output set used by fully-adaptive routing. Keep this policy
+// independent of the selection mechanism so DP and the router evaluate the
+// same destination-directed choices.
+inline vector<int> fullyAdaptiveLegalOutputs(const TCoord& current,
+                                             const TCoord& destination)
+{
+  vector<int> directions;
+
+  if (destination.x > current.x) directions.push_back(DIRECTION_EAST);
+  else if (destination.x < current.x) directions.push_back(DIRECTION_WEST);
+
+  if (destination.y > current.y) directions.push_back(DIRECTION_SOUTH);
+  else if (destination.y < current.y) directions.push_back(DIRECTION_NORTH);
+
+  if (destination.z > current.z) directions.push_back(DIRECTION_DOWN);
+  else if (destination.z < current.z) directions.push_back(DIRECTION_UP);
+
+  return directions;
+}
 
 //---------------------------------------------------------------------------
 // TFlitType -- Flit type enumeration
@@ -485,37 +505,47 @@ inline int coord2Id(const TCoord& coord)
 }
 
 
-inline void  BubbleSort(int* num, int* indicies)
+inline void BubbleSort(const int* num, int* indices)
 {
-      int i, j;    // set flag to 1 to start first pass
-      int temp;             // holding variable
-      int numLength = DIRECTIONS;
-      int num_original[]={0, 0, 0, 0, 0, 0};
-      memcpy(num_original, num, DIRECTIONS*sizeof(int));	
-      int t=(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
+    // Begin in port-number order; equal costs remain in this order.
+    for (int i = 0; i < DIRECTIONS; ++i)
+        indices[i] = i;
 
-      for(i = 0; i < (numLength-1); i++)
-     {
-          for (j=0; j < (numLength-1); j++)
-         {
-	       
-               if (num[j+1] < num[j])      // ascending order simply changes to <
-              { 
+    // Sort indices by ascending num[index].
+    for (int i = 1; i < DIRECTIONS; ++i)
+    {
+        const int selected_index = indices[i];
+        const int selected_cost  = num[selected_index];
+        int j = i - 1;
 
-                    temp = num[j];             // swap elements
-                    num[j] = num[j+1];
-                    num[j+1] = temp;
-                    temp=indicies[j];
-		    indicies[j]=indicies[j+1];
-		    indicies[j+1]=temp;
-               } 
-          }
-     }
+        while (j >= 0 && num[indices[j]] > selected_cost)
+        {
+            indices[j + 1] = indices[j];
+            --j;
+        }
 
-     memcpy(num, num_original,  DIRECTIONS*sizeof(int));
-return;
+        indices[j + 1] = selected_index;
+    }
 }
 
+// NoximDefs.h — after TCoord
+
+inline vector<int> routingFullyAdaptive(const TCoord& current,
+                                             const TCoord& destination)
+{
+    vector<int> directions;
+
+    if (destination.x > current.x) directions.push_back(DIRECTION_EAST);
+    else if (destination.x < current.x) directions.push_back(DIRECTION_WEST);
+
+    if (destination.y > current.y) directions.push_back(DIRECTION_SOUTH);
+    else if (destination.y < current.y) directions.push_back(DIRECTION_NORTH);
+
+    if (destination.z > current.z) directions.push_back(DIRECTION_DOWN);
+    else if (destination.z < current.z) directions.push_back(DIRECTION_UP);
+
+    return directions;
+}
 #endif  // NOXIMDEFS_H
 
 

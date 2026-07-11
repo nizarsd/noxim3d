@@ -24,6 +24,12 @@ SC_MODULE(DPNode)
   int frozen_local_cost[DIRECTIONS];  // to latch the cost to DP nodes once for every full convergence of DP
   int stime2;
   int cost_mem[DPSIZE][DIRECTIONS];   // advertised cost per dst per input dir
+
+  // Turn-legality cache: can_turn() is invariant over a run (depends only on
+  // node coords, dst, and the fixed routing algorithm), so memoize it per
+  // destination to keep it off the per-cycle hot path.
+  bool legal_cache[DPSIZE][DIRECTIONS][DIRECTIONS];
+  bool legal_cached[DPSIZE];
  // Functions
 
  void dpProcess();
@@ -35,8 +41,9 @@ SC_MODULE(DPNode)
  bool can_turnOddEvenNM(int dir_in, int dir_out, int dst_id);
  bool can_turnNegativeFirst(int dir_in, int dir_out, int dst_id);
  bool can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id);
-	 
-	bool isMinimalDirection(int dir,
+ bool can_turnFullyAdaptive(int dir_in, int dir_out, int dst_id);
+
+ bool isMinimalDirection(int dir,
 							const TCoord& current,
 							const TCoord& destination,
 							bool incoming);
@@ -67,7 +74,7 @@ SC_MODULE(DPNode)
   {
     SC_METHOD(dpProcess);
      sensitive <<reset    <<dp_clock.pos();
-	 sensitive <<dp_rx[0] <<dp_rx[1] <<dp_rx[2] <<dp_rx[3] <<dp_rx[4] << dp_rx[5];
+	 // sensitive <<dp_rx[0] <<dp_rx[1] <<dp_rx[2] <<dp_rx[3] <<dp_rx[4] << dp_rx[5];
 	 // sensitive <<local_dp_cost ; 
 	 //used_buffer_size[0] <<used_buffer_size[1]<< used_buffer_size[2]<< used_buffer_size[3]<< used_buffer_size[4]<< used_buffer_size[5];
 

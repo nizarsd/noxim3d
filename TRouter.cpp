@@ -317,20 +317,20 @@ void TRouter::bufferMonitor()
 	channel_samples++;
 
 
-  //  if (TGlobalParams::selection_strategy==SEL_BUFFER_LEVEL ||
-	//TGlobalParams::selection_strategy==SEL_NOP)
-   // {
-
-      // update current input buffers level to neighbors
+      // Advertise our input-buffer free slots to neighbours every cycle.
+      // DP's congestion sampling (channel_load loop above) and bufferlevel
+      // selection both read free_slots_neighbor, so this must stay unconditional.
       for (int i=0; i<DIRECTIONS+1; i++)
-		free_slots[i].write(buffer[i].getCurrentFreeSlots());
+		    free_slots[i].write(buffer[i].getCurrentFreeSlots());
 
-      // NoP selection: send neighbor info to each direction 'i'
-      TNoP_data current_NoP_data = getCurrentNoPData();
-
-      for (int i=0; i<DIRECTIONS; i++)
-	NoP_data_out[i].write(current_NoP_data);
-  //  }
+      // NoP data is consumed only by selectionNoP(); computing and writing it
+      // every cycle is wasted work under any other selection strategy.
+      if (TGlobalParams::selection_strategy == SEL_NOP)
+      {
+          TNoP_data current_NoP_data = getCurrentNoPData();
+          for (int i=0; i<DIRECTIONS; i++)
+              NoP_data_out[i].write(current_NoP_data);
+      }
   }
 
 }
@@ -562,8 +562,9 @@ int TRouter::selectionDP(const vector<int>& directions, const TRouteData& route_
       if (directions[i] == routing_directions[dst][j]) {
         if (reservation_table.isAvailable(directions[i]))
           return directions[i];                 // exit with best free DP direction first
-        if (best_available == NOT_VALID)		// 
-          best_available = directions[i];        // best DP direction (may be busy)
+        
+        if (best_available == NOT_VALID)		    //  to lock only the best DP direction (may be busy)
+          best_available = directions[i];       // best DP direction (may be busy)
       }
 
   if (best_available != NOT_VALID) return best_available;
@@ -806,7 +807,7 @@ if (destination.x < current.x && destination.y < current.y && destination.z > cu
 
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
-
+// Odd-Even routing algorithm x primary (column wise)
 vector<int> TRouter::routingOddEven(const TCoord& current, 
 				    const TCoord& source, const TCoord& destination)
 {
@@ -832,7 +833,7 @@ vector<int> TRouter::routingOddEven(const TCoord& current,
     }
   else
     {
-      if (e0 > 0)
+      if (e0 > 0) // going east
 	{
 	  if (e1 == 0)
 	    directions.push_back(DIRECTION_EAST);
@@ -895,136 +896,11 @@ vector<int> TRouter::routingDyAD(const TCoord& current,
 
 //---------------------------------------------------------------------------
 
-vector<int> TRouter::routingFullyAdaptive(const TCoord& current, const TCoord& destination)
+// Now moved to NoximDefs.h with new code to support 3D routing and be used for can turn in the DPNode.cpp
+vector<int> TRouter::routingFullyAdaptive(const TCoord& current,
+                                          const TCoord& destination)
 {
-  vector<int> directions;
-
-  if (destination.x == current.x && destination.y == current.y || 
-      destination.x == current.x && destination.z == current.z ||
-      destination.z == current.z && destination.y == current.y )
-    return routingXYZ(current, destination);
-
-
-  if  (destination.x > current.x && destination.y > current.y && destination.z > current.z)
-    {
-      directions.push_back(DIRECTION_EAST);
-      directions.push_back(DIRECTION_SOUTH);
-      directions.push_back(DIRECTION_DOWN);
-    }
-  else if (destination.x > current.x && destination.y > current.y && destination.z < current.z)
-    {
-      directions.push_back(DIRECTION_EAST);
-      directions.push_back(DIRECTION_SOUTH);
-      directions.push_back(DIRECTION_UP);
-    }
-  else if (destination.x > current.x && destination.y < current.y && destination.z > current.z)
-    {
-      directions.push_back(DIRECTION_EAST);
-      directions.push_back(DIRECTION_NORTH);
-      directions.push_back(DIRECTION_DOWN);
-    }
-  else if (destination.x > current.x && destination.y < current.y && destination.z < current.z)
-    {
-      directions.push_back(DIRECTION_EAST);
-      directions.push_back(DIRECTION_NORTH);
-      directions.push_back(DIRECTION_UP);
-    }
-
-  else if (destination.x < current.x && destination.y > current.y && destination.z > current.z)
-    {
-      directions.push_back(DIRECTION_WEST);
-      directions.push_back(DIRECTION_SOUTH);
-      directions.push_back(DIRECTION_DOWN);
-    }
-  else if (destination.x < current.x && destination.y > current.y && destination.z < current.z)
-    {
-      directions.push_back(DIRECTION_WEST);
-      directions.push_back(DIRECTION_SOUTH);
-      directions.push_back(DIRECTION_UP);
-    }
-  else if (destination.x < current.x && destination.y < current.y && destination.z > current.z)
-    {
-      directions.push_back(DIRECTION_WEST);
-      directions.push_back(DIRECTION_NORTH);
-      directions.push_back(DIRECTION_DOWN);
-    }
-  else if (destination.x < current.x && destination.y < current.y && destination.z < current.z)
-    {
-      directions.push_back(DIRECTION_WEST);
-      directions.push_back(DIRECTION_NORTH);
-      directions.push_back(DIRECTION_UP);
-    }
-
-
-  else if (destination.x == current.x && destination.y < current.y && destination.z < current.z)
-    {
-      directions.push_back(DIRECTION_NORTH);
-      directions.push_back(DIRECTION_UP);
-    }
-  else if (destination.x == current.x && destination.y < current.y && destination.z > current.z)
-    {
-      directions.push_back(DIRECTION_NORTH);
-      directions.push_back(DIRECTION_DOWN);
-    }
-  else if (destination.x == current.x && destination.y > current.y && destination.z < current.z)
-    {
-      directions.push_back(DIRECTION_SOUTH);
-      directions.push_back(DIRECTION_UP);
-    }
-  else if (destination.x == current.x && destination.y > current.y && destination.z > current.z)
-    {
-      directions.push_back(DIRECTION_SOUTH);
-      directions.push_back(DIRECTION_DOWN);
-    }
-
-
-  else if (destination.x > current.x && destination.y == current.y && destination.z < current.z)
-    {
-      directions.push_back(DIRECTION_EAST);
-      directions.push_back(DIRECTION_UP);
-    }
-  else if (destination.x > current.x && destination.y == current.y && destination.z > current.z)
-    {
-      directions.push_back(DIRECTION_EAST);
-      directions.push_back(DIRECTION_DOWN);
-    }
-  else if (destination.x < current.x && destination.y == current.y && destination.z < current.z)
-    {
-      directions.push_back(DIRECTION_WEST);
-      directions.push_back(DIRECTION_UP);
-    }
-  else if (destination.x < current.x && destination.y == current.y && destination.z > current.z)
-    {
-      directions.push_back(DIRECTION_WEST);
-      directions.push_back(DIRECTION_DOWN);
-    }
-
-
-
-  else if (destination.x > current.x && destination.y < current.y && destination.z == current.z)
-    {
-      directions.push_back(DIRECTION_EAST);
-      directions.push_back(DIRECTION_NORTH);
-    }
-  else if (destination.x > current.x && destination.y > current.y && destination.z == current.z)
-    {
-      directions.push_back(DIRECTION_EAST);
-      directions.push_back(DIRECTION_SOUTH);
-
-    }
-  else if (destination.x < current.x && destination.y < current.y && destination.z == current.z)
-    {
-      directions.push_back(DIRECTION_NORTH);
-      directions.push_back(DIRECTION_WEST);
-    }
-  else //(destination.x < current.x && destination.y > current.y && destination.z == current.z)
-    {
-      directions.push_back(DIRECTION_SOUTH);
-      directions.push_back(DIRECTION_WEST);
-    }
-
-  
-  return directions;
+    return fullyAdaptiveLegalOutputs(current, destination);
 }
 
 //---------------------------------------------------------------------------
@@ -1220,62 +1096,6 @@ bool TRouter::inCongestion()
   return false;
 }
 
-// ---------------------------------------------------------------------------
-// Update the cost function on the DP-unit -- added by Ra'ed, Modified by <Nizar>
-// Three-phase control: measure ONLY during SETTLE (new tables fully in effect),
-// publish the cost at SETTLE end so dpProcess snapshots it at the next CONVERGE
-// start (phase==0). CONVERGE-phase traffic is discarded (routes still changing).
-// void TRouter::cost_to_go()
-// {
-	// if (TGlobalParams::selection_strategy != SEL_DP)
-		// return;
-
-	// int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
-	// int phase = stime % dp_cycle();
-
-	// if (phase == dp_pass())                 // SETTLE begins: reset, measure new-policy traffic cleanly
-	// {
-		// traffic_counter = 0;
-	// }
-	// else if (phase == dp_cycle() - 1)       // SETTLE ends: publish cost for the next CONVERGE snapshot
-	// {
-		// int dp_cost = (100 * traffic_counter) / (dp_settle() * 4);
-		// local_dp_cost.write(dp_cost);
-	// }
-// }
-
-//cost to go buffer level based per channel <Nizar> 
-// void TRouter::cost_to_go()
-// {
-	// if (TGlobalParams::selection_strategy != SEL_DP)
-		// return;
-
-	// int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
-	// int phase = stime % dp_cycle();
-	
-	// if (stime%TGlobalParams::tcu_interval == 0) {
-	//	cost_to_go, at cinterval boundary:
-		// for (int d = 0; d < DIRECTIONS; d++) {
-			// int maxb = TGlobalParams::buffer_depth;
-			// int avg = channel_samples ? channel_load[d] / channel_samples : 0;
-			// dp_channel_cost[d] = min(100, (100 * avg) / maxb);   // normalize 0..100
-			// local_dp_cost[d].write(dp_channel_cost[d]);
-			// channel_load[d] = 0;
-		// }
-		// channel_samples = 0;
-	// }
-
-	// if (phase == dp_pass())                 // SETTLE begins: reset, measure new-policy traffic cleanly
-	// {
-		// traffic_counter = 0;
-	// }
-	// else if (phase == dp_cycle() - 1)       // SETTLE ends: publish cost for the next CONVERGE snapshot
-	// {
-		// int dp_cost = (100 * traffic_counter) / (dp_settle() * 4);
-		// local_dp_cost.write(dp_cost);
-	// }
-// }
-
 
 // cost to go: buffer-level based, per channel <Nizar>
 void TRouter::cost_to_go()
@@ -1283,23 +1103,33 @@ void TRouter::cost_to_go()
 	if (TGlobalParams::selection_strategy != SEL_DP)
 		return;
 
+	if (reset.read()) {
+		for (int d = 0; d < DIRECTIONS; d++) {
+			dp_channel_cost[d] = 0;
+			local_dp_cost[d].write(0);
+			channel_load[d] = 0;
+		}
+		channel_samples = 0;
+		return;
+	}
+
 	int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
 
-		if (stime % TGlobalParams::tcu_interval == 0) {
-			#ifdef DP_DEBUG
-				if (local_id == 4 && stime % TGlobalParams::tcu_interval == 0)
+	if (stime % TGlobalParams::tcu_interval == 0) {
+		#ifdef DP_DEBUG
+			if (local_id == 4 && stime % TGlobalParams::tcu_interval == 0)
 				std::cerr << "load[0]=" << channel_load[0] << " samples=" << channel_samples 
-				<< " avg0=" << (channel_samples?channel_load[0]/channel_samples:0) << "\n";
+					<< " avg0=" << (channel_samples?channel_load[0]/channel_samples:0) << "\n";
 
-			#endif
-    
+		#endif
+
 		int maxb = TGlobalParams::buffer_depth;
 		for (int d = 0; d < DIRECTIONS; d++) {
 			// avg occupancy as a percentage of buffer, computed without losing the fraction
 			dp_channel_cost[d]  = channel_samples ? (100 * channel_load[d]) / (channel_samples * maxb):0;    // bounds to [0,100] by construction
 			//dp_channel_cost[d]  = channel_samples ? (100 * channel_load[d]) / (channel_samples) : 0;
 			local_dp_cost[d].write(dp_channel_cost[d]);
-						channel_load[d] = 0;
+			channel_load[d] = 0;
 		}
 		channel_samples = 0;
 	}
@@ -1377,7 +1207,7 @@ return directions;
 
 
 
-//minimum odd-even row-wise <Nizar> 
+//minimum odd-even y primary (row-wise) <Nizar> 
 vector<int> TRouter::routingOddEven0(const TCoord& current, 
 				    const TCoord& source, const TCoord& destination)
 {
@@ -1403,7 +1233,7 @@ vector<int> TRouter::routingOddEven0(const TCoord& current,
     }
   else
      {
-      if (e1 > 0)
+      if (e1 > 0) // going south
 	{
 	  if (e0 == 0)
 	    directions.push_back(DIRECTION_SOUTH);
@@ -1446,70 +1276,13 @@ vector<int> TRouter::routingOddEven0(const TCoord& current,
   return directions;
 }
 
-// minimum odd-even column-wise <Nizar)
-vector<int> TRouter::routingOddEven1(const TCoord& current, 
-				    const TCoord& source, const TCoord& destination)
+
+vector<int> TRouter::routingOddEven1(const TCoord& current,
+                                     const TCoord& source,
+                                     const TCoord& destination)
 {
-  vector<int> directions;
-  int c0 = current.x;
-  int c1 = current.y;
-  int s0 = source.x;
-  //  int s1 = source.y;
-  int d0 = destination.x;
-  int d1 = destination.y;
-  int e0, e1;
-
-  e0 = d0 - c0;
-  e1 = -(d1 - c1);
-
-  if (e0 == 0)
-    {
-      if (e1 > 0)
-	directions.push_back(DIRECTION_NORTH);
-      else
-	directions.push_back(DIRECTION_SOUTH);
-    }
-  else
-   {
-      if (e0 > 0)  // Eastwards
-	  {
-	    if (e1 == 0)
-		    directions.push_back(DIRECTION_EAST);
-	    
-	    else
-		{
-		if ( (c0 % 2 == 0) || (c0 == s0) )
-				{
-				if (e1 > 0)
-					directions.push_back(DIRECTION_NORTH);
-				else
-					directions.push_back(DIRECTION_SOUTH);
-				}
-	    if ( (d0 % 2 == 0) || (e0 != 1) )
-		  		 directions.push_back(DIRECTION_EAST);
-		
-		
-	    }
-      }	// e0 >0
-      else // e0<0 (// Weststwards)
-	  {
-		directions.push_back(DIRECTION_WEST);
-		if (c0 % 2 == 1)
-		{
-				if (e1 > 0)
-					directions.push_back(DIRECTION_NORTH);
-				else
-					directions.push_back(DIRECTION_SOUTH);
-			
-		}
-	  } // e0<0
-  }// e0!= 0
-  
-  return directions;
-} 
-
-
-
+    return routingOddEven(current, source, destination);
+}
 
 
 //Non-minimum Odd Even <Nizar>
@@ -1900,10 +1673,9 @@ return directions;
 
 
 // Balanced odd-even routing for 3D NoC <Nizar>
-// In-plane: plane-parity rule — even plane row-wise (OE0), odd plane column-wise (OE1).
-// Vertical: gating identical to the published routingOddEven3D (j2/c2) — these
-// conditions are the inter-plane cycle-breaking rules; do not simplify them.
-// MUST stay in lockstep with DPNode::can_turnOddEvenBalanced.
+/// In-plane routing alternates by z-plane parity:
+// even z planes use X-primary odd-even (routingOddEven1, or column-wise), while;
+// odd z planes use Y-primary odd-even (routingOddEven0 or row-wise).
 vector<int> TRouter::routingOddEvenBalanced(const TRouteData& route_data)
 {
   TCoord current     = id2Coord(route_data.current_id);
@@ -1929,9 +1701,9 @@ vector<int> TRouter::routingOddEvenBalanced(const TRouteData& route_data)
   {
     // on destination plane: parity-split in-plane only
     if (cz % 2 == 0)
-      directions = routingOddEven0(current, source, destination); // row-wise
+      directions = routingOddEven1(current, source, destination); // x primary  column-wise
     else
-      directions = routingOddEven1(current, source, destination); // column-wise
+      directions = routingOddEven0(current, source, destination); // y primary  row-wise
   }
   else if (ez > 0)   // going down
   {
@@ -1942,9 +1714,9 @@ vector<int> TRouter::routingOddEvenBalanced(const TRouteData& route_data)
       if ((cz % 2 == 1) || (cz == sz))           // in-plane on odd or source plane
       {
         if (cz % 2 == 0)
-          directions = routingOddEven0(current, source, destination);
-        else
           directions = routingOddEven1(current, source, destination);
+        else
+          directions = routingOddEven0(current, source, destination);
       }
       if ((dz % 2 == 1) || (ez != 1))            // descend under published condition
         directions.push_back(DIRECTION_DOWN);
@@ -1955,7 +1727,7 @@ vector<int> TRouter::routingOddEvenBalanced(const TRouteData& route_data)
     // exclusivity preserved from the published algorithm:
     // unaligned + even plane -> in-plane ONLY; otherwise UP only
     if ((ex != 0 || ey != 0) && (cz % 2 == 0))
-      directions = routingOddEven0(current, source, destination); // even plane: row-wise
+      directions = routingOddEven1(current, source, destination); // even plane: X-primary (column-wise)
     else
       directions.push_back(DIRECTION_UP);
   }

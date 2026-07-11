@@ -84,25 +84,37 @@ void DPNode::dpProcess()
 	for (int i=0; i<DIRECTIONS; i++)
 		dp_cost[i] = BIG_VALUE;
 
-	// Min cost per input direction j, over legal-turn output ports (i).
-	for (int i=0; i<DIRECTIONS; i++)
-		for (int j=0; j<DIRECTIONS; j++)
-			if (can_turn(j, sorted_ports[i], dst_id) && dp_cost[j] > rx_dp_cost[sorted_ports[i]])
-				dp_cost[j] = rx_dp_cost[sorted_ports[i]];
+// Build this destination's turn-legality table once, then reuse it. can_turn()
+// is constant for the whole run, so this moves ~25% of runtime off the hot path.
+if (!legal_cached[dst_id]) {
+    for (int a = 0; a < DIRECTIONS; a++)
+        for (int b = 0; b < DIRECTIONS; b++)
+            legal_cache[dst_id][a][b] = can_turn(a, b, dst_id);
+    legal_cached[dst_id] = true;
+}
 
-	
-	for (int i=0; i<DIRECTIONS; i++)
-	{
-		dp_tx[i].write (dp_cost[i]);
-		// invalidate ranks whose output-port cost is BIG_VALUE (turn-illegal / unreachable)
-		if (rx_dp_cost[sorted_ports[i]] >= BIG_VALUE)
-			dp_dir[i].write(NOT_VALID);
-		else
-			dp_dir[i].write(sorted_ports[i]);
-		
-		cost_mem[dst_id][i] = dp_cost[i];
-	}
-		
+// Min cost per input direction j, over legal-turn output ports (i).
+for (int i = 0; i < DIRECTIONS; i++)
+    for (int j = 0; j < DIRECTIONS; j++)
+        if (legal_cache[dst_id][j][sorted_ports[i]] && dp_cost[j] > rx_dp_cost[sorted_ports[i]])
+            dp_cost[j] = rx_dp_cost[sorted_ports[i]];
+
+// DP convergence must continue every cycle.
+for (int i = 0; i < DIRECTIONS; i++) {
+    dp_tx[i].write(dp_cost[i]);
+    cost_mem[dst_id][i] = dp_cost[i];
+}
+
+// Publish ranking one clock before the router latches it.
+if ((phase % dp_dwell()) == dp_dwell() - 2) {
+    for (int i = 0; i < DIRECTIONS; i++) {
+        if (rx_dp_cost[sorted_ports[i]] >= BIG_VALUE)
+            dp_dir[i].write(NOT_VALID);
+        else
+            dp_dir[i].write(sorted_ports[i]);
+    }
+}
+    
 // ---- DEBUG: convergence trace for one fixed destination ----------------
 // Compile with -DDP_DEBUG. Traces cost to DP_WATCH_DST only.
 #ifdef DP_DEBUG
@@ -235,7 +247,8 @@ void DPNode::dpProcess()
 void  DPNode::configure(const int _local_id)
 {
   local_id = _local_id;
- 
+  for (int d = 0; d < DPSIZE; d++)
+      legal_cached[d] = false;
 }
 
 // check if the turn is allowed
@@ -250,6 +263,9 @@ bool  DPNode::can_turn(int dir_in, int dir_out, int dst_id)
   case ROUTING_ODD_EVEN: 
 	    return	can_turnOddEven(dir_in, dir_out, dst_id);
 	    break;
+  case ROUTING_FULLY_ADAPTIVE:
+        return can_turnFullyAdaptive(dir_in, dir_out, dst_id);
+        break;
  case ROUTING_DW_ODD_EVEN: 
 	    return	can_turnDwOddEven(dir_in, dir_out, dst_id);
 	    break;
@@ -267,8 +283,8 @@ case ROUTING_ODD_EVEN_BALANCED:
 
     return can_turnOddEvenBalanced(dir_in, dir_out, dst_id);
 
-	break;
-  
+	  break;
+
   default:
 	return true;
 }
@@ -276,6 +292,7 @@ case ROUTING_ODD_EVEN_BALANCED:
 
 
 }
+
 
 bool DPNode::can_turnOddEven(int dir_in, int dir_out, int dst_id)
 {
@@ -1142,25 +1159,25 @@ bool DPNode::can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id)
          * odd  z-plane => OE1
          */
         if (cz % 2 == 0)
-            directions = routingOddEven0_DPStrict(current, destination);
-        else
             directions = routingOddEven1_DPStrict(current, destination);
+        else
+            directions = routingOddEven0_DPStrict(current, destination);
     }
     else if (ez > 0) { // going DOWN
         if ((ex == 0) && (ey == 0)) {
             directions.push_back(DIRECTION_DOWN);
         }
         else {
-            /*
-             * Real balanced routing had:
-             *     (cz % 2 == 1) || (cz == sz)
+          /*
+             * The router permits in-plane routing on odd z planes, and
+             * additionally on the true source plane. DP has no packet-source
+             * state, so it keeps the source-independent strict subset:
+             * odd z planes only.
              *
-             * DP does not know true source plane, so remove cz == sz.
-             *
-             * On odd planes, allow in-plane OE1 before/with downward movement.
+             * Odd z planes use OE0: Y-primary / row-wise.
              */
             if (cz % 2 == 1)
-                directions = routingOddEven1_DPStrict(current, destination);
+                directions = routingOddEven0_DPStrict(current, destination);
 
             if ((dz % 2 == 1) || (ez != 1))
                 directions.push_back(DIRECTION_DOWN);
@@ -1168,12 +1185,12 @@ bool DPNode::can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id)
     }
     else { // ez < 0, going UP
         /*
-         * Preserve vertical gating:
-         * unaligned + even z-plane => in-plane OE0 only;
+         * Same vertical exclusivity as the router:
+         * unaligned + even z-plane => in-plane OE1 only;
          * otherwise => UP only.
          */
         if ((ex != 0 || ey != 0) && (cz % 2 == 0))
-            directions = routingOddEven0_DPStrict(current, destination);
+            directions = routingOddEven1_DPStrict(current, destination);
         else
             directions.push_back(DIRECTION_UP);
     }
@@ -1185,6 +1202,8 @@ bool DPNode::can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id)
 
     return false;
 }
+
+// Check if the direction is a minimal direction towards the destination.
 bool DPNode::isMinimalDirection(int dir,
                                 const TCoord& current,
                                 const TCoord& destination,
@@ -1352,79 +1371,25 @@ vector<int> DPNode::routingOddEven0_DPStrict(const TCoord& current,
     return directions;
 }
 
-vector<int> DPNode::routingOddEven1_DPStrict(const TCoord& current,
-                                             const TCoord& destination)
+vector<int> DPNode::routingOddEven1_DPStrict(
+    const TCoord& current,
+    const TCoord& destination)
 {
-    vector<int> directions;
+    // Current router OE1 is the standard X-primary odd-even algorithm.
+    // DP uses its source-independent strict form.
+    return routingOddEvenDPStrict(current, destination);
+}
 
-    int c0 = current.x;
-    int c1 = current.y;
+// DPNode.cpp
+bool DPNode::can_turnFullyAdaptive(int dir_in, int dir_out, int dst_id)
+{
+    TCoord current     = id2Coord(local_id);
+    TCoord destination = id2Coord(dst_id);
 
-    int d0 = destination.x;
-    int d1 = destination.y;
+    // Reject immediate physical backtracking.
+    if (dir_in == dir_out)
+        return false;
+  
+  return isMinimalDirection(dir_out, current, destination, false);
 
-    /*
-     * OE1 / column-wise orientation.
-     *
-     * Same convention as routingOddEven1():
-     *   e0 > 0 => destination is EAST
-     *   e0 < 0 => destination is WEST
-     *   e1 > 0 => destination is NORTH
-     *   e1 < 0 => destination is SOUTH
-     */
-    int e0 = d0 - c0;
-    int e1 = -(d1 - c1);
-
-    if (e0 == 0) {
-        if (e1 > 0)
-            directions.push_back(DIRECTION_NORTH);
-        else if (e1 < 0)
-            directions.push_back(DIRECTION_SOUTH);
-    }
-    else if (e0 > 0) { // destination is EAST
-        if (e1 == 0) {
-            directions.push_back(DIRECTION_EAST);
-        }
-        else {
-            /*
-             * Preserve OE1 one-hop destination-column restriction,
-             * but remove source-column exception.
-             */
-            if ((d0 % 2 == 1) && (e0 == 1)) {
-                if (e1 > 0)
-                    directions.push_back(DIRECTION_NORTH);
-                else
-                    directions.push_back(DIRECTION_SOUTH);
-            }
-            else {
-                /*
-                 * Original source-sensitive condition:
-                 *     (c0 % 2 == 0) || (c0 == s0)
-                 *
-                 * DP does not know true source column, so remove c0 == s0.
-                 */
-                if (c0 % 2 == 0) {
-                    if (e1 > 0)
-                        directions.push_back(DIRECTION_NORTH);
-                    else
-                        directions.push_back(DIRECTION_SOUTH);
-                }
-
-                if ((d0 % 2 == 0) || (e0 != 1))
-                    directions.push_back(DIRECTION_EAST);
-            }
-        }
-    }
-    else { // e0 < 0, destination is WEST
-        directions.push_back(DIRECTION_WEST);
-
-        if (c0 % 2 == 1) {
-            if (e1 > 0)
-                directions.push_back(DIRECTION_NORTH);
-            else if (e1 < 0)
-                directions.push_back(DIRECTION_SOUTH);
-        }
-    }
-
-    return directions;
 }

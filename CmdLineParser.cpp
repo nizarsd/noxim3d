@@ -248,7 +248,7 @@ void parseCmdLine(int arg_num, char *arg_vet[])
       else if (!strcmp(arg_vet[i], "-routing"))
       {
 	char *routing = arg_vet[++i];
-        if (!strcmp(routing, "xy")) 
+        if (!strcmp(routing, "xy") || !strcmp(routing, "xyz"))  
 	  TGlobalParams::routing_algorithm = ROUTING_XY;
         else if (!strcmp(routing, "westfirst")) 
 	  TGlobalParams::routing_algorithm = ROUTING_WEST_FIRST;
