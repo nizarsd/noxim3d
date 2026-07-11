@@ -1,0 +1,64 @@
+# Layer0: Silicon
+0
+Y
+Y
+1.75e6
+0.01
+0.0015
+teraflop.flp
+# Layer1 : thermal interface material (TIM)
+1
+Y
+N
+2e6
+0.25
+2e-5
+teraflop.flp
+# Layer2: Silicon
+2
+Y
+Y
+1.75e6
+0.01
+0.0015
+teraflop.flp
+# Layer3 : thermal interface material (TIM)
+3
+Y
+N
+2e6
+0.25
+2e-5
+teraflop.flp
+# Layer4: Silicon
+4
+Y
+Y
+1.75e6
+0.01
+0.0015
+teraflop.flp
+# Layer5 : thermal interface material (TIM)
+5
+Y
+N
+2e6
+0.25
+2e-5
+teraflop.flp
+# Layer6: Silicon
+6
+Y
+Y
+1.75e6
+0.01
+0.0015
+teraflop.flp
+# Layer7 : thermal interface material (TIM)
+7
+Y
+N
+2e6
+0.25
+2e-5
+teraflop.flp

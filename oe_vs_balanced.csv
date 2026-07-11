@@ -1,0 +1,8 @@
+routing,pir,seed,avg_delay,recv_packets
+oddeven,0.010,10,48.7792,22892
+oddeven,0.014,10,281.018,29949
+oddeven,0.018,10,373.673,35746
+oddeven,0.024,10,690.151,40636
+oddeven,0.030,10,1392.42,37157
+oddeven,0.038,10,2154.05,38230
+oddevenbalanced,0.010,10,119.355,22302

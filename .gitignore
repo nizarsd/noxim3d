@@ -1,0 +1,30 @@
+# Build artifacts
+*.o
+*.obj
+*.exe
+noxim
+
+# Version control cruft
+.svn/
+
+# Windows zone identifier alternate data streams (from downloaded/copied files)
+*Zone.Identifier*
+
+# Simulation outputs / result dumps
+results/
+results_*/
+*.ptrace
+*.ptrace.old
+*.ptrace.temp
+*.ptrace.temp.old
+*.steady
+*.steady.aggrigate
+*.steady.aggrigate.fa
+*.grid.steady
+*.grid.steady.fa
+*.init
+*.flp.old
+
+# Archives / snapshots
+*.tar.gz
+*.zip
