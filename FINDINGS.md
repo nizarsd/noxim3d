@@ -33,6 +33,42 @@ Poisson injection, buffer 16, seeds {2, 6, 10}.
   (100·hops + accumulated buffer-occupancy congestion) within `hop_distance`
   cycles and holds stable through the dwell window — verified via `-DDP_DEBUG`.
 
+## Reproduction
+
+Runner: [`noximrun_buffer_sweep_parallel.bash`](noximrun_buffer_sweep_parallel.bash)
+(or the sequential [`noximrun_buffer_sweep.bash`](noximrun_buffer_sweep.bash)).
+Timing is auto-derived from the mesh; everything not set below is left at Noxim
+defaults. Invocation template:
+
+```
+DIMX=<X> DIMY=<Y> DIMZ=3 \
+PIR_LIST="<grid>" \
+SEEDS="2 6 10" \                 # coarse knee-finder for 8x8x3 used SEEDS="2"
+BUFFER_LIST="16" \
+WARMUP_DP_CYCLES=3 SIM_DP_CYCLES=20 \
+ROUTING=oddevenbalanced TRAFFIC=transpose1 \
+OUTDIR=results_knee_<mesh> JOBS=8 \
+bash noximrun_buffer_sweep_parallel.bash
+```
+
+Read `OUTDIR/summary_compare.csv` for the DP-vs-BL means (delay reduction %).
+
+Per-mesh PIR grids actually used (coarse locates the knee; the fine sweep gives
+the tabulated peak):
+
+| mesh | coarse knee-finder | fine sweep (3 seeds) |
+|------|--------------------|----------------------|
+| 4×4×3 | `0.030 0.035 0.040 0.045 0.050 0.055 0.060` | `0.036 0.037 0.038 0.039 0.041 0.042 0.043 0.044` (reuses coarse 0.035/0.040/0.045) |
+| 5×5×3 | — (swept directly across the knee) | `0.020 0.022 0.024 0.025 0.026 0.028 0.030` |
+| 6×6×3 | `0.012 0.015 0.018 0.020 0.022 0.025 0.028 0.030` | `0.018 0.019 0.020 0.021 0.022 0.024 0.026` |
+| 7×7×3 | `0.010 0.013 0.015 0.017 0.019 0.021 0.024` | *(not yet run — see Open items)* |
+| 8×8×3 | `0.008 0.010 0.012 0.014 0.016 0.018 0.020` | `0.012 0.013 0.014 0.015 0.016 0.017 0.018` |
+
+Seeds: all sweeps used `SEEDS="2 6 10"` **except** the 8×8×3 coarse knee-finder,
+which used `SEEDS="2"` (single seed — the 1-seed knee-finder was only needed once
+the meshes got large enough to be slow). The 7×7×3 peak is therefore coarse-grid
+(3-seed) and still wants a fine sweep to confirm.
+
 ## Headline result — size × parity (Z = 3 series)
 
 Peak = best DP delay reduction vs BL near the knee. "Past-knee" = behaviour once
