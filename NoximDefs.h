@@ -138,6 +138,7 @@ using namespace std;
 #define DEFAULT_NO_OF_SAMPLES		10	
 #define DPSIZE					    260
 #define DEFAULT_TCU_INTERVAL		500
+#define DEFAULT_DP_SETTLE_MULT		0
 #define DEFAULT_BW_THRESHOLD		1000
 
 //<Nizar>
@@ -184,6 +185,7 @@ struct TGlobalParams
   static int   token_ring;
   static int   no_of_samples;
   static int   tcu_interval;
+  static int   dp_settle_mult;   // settle window = dp_settle_mult * dp_pass (CLI: -dpsettle)
   static int   bw_threshold;
   
 
@@ -220,7 +222,7 @@ inline int dp_diameter()
 
 inline int dp_dwell()   { return dp_diameter() + 3; }             // cycles per destination
 inline int dp_pass()    { return dp_dwell() * dp_no_dst(); }      // full converge sweep
-inline int dp_settle()  { return dp_pass(); }                     // network-settle window (tune)
+inline int dp_settle()  { return TGlobalParams::dp_settle_mult * dp_pass(); }  // hold window (CLI -dpsettle, default 1)
 inline int dp_cycle()   { return dp_pass() + dp_settle(); }       // full reconfiguration period
 
 //---------------------------------------------------------------------------

@@ -369,6 +369,8 @@ void parseCmdLine(int arg_num, char *arg_vet[])
       	TGlobalParams::dy_t_mode = atoi(arg_vet[++i]);
 	  else if (!strcmp(arg_vet[i], "-cinterval"))
 	TGlobalParams::tcu_interval = atoi(arg_vet[++i]);
+	  else if (!strcmp(arg_vet[i], "-dpsettle"))   // settle window = N * dp_pass (default 1)
+	TGlobalParams::dp_settle_mult = atoi(arg_vet[++i]);
 	  else if (!strcmp(arg_vet[i], "-bwt"))
 	TGlobalParams::bw_threshold = atoi(arg_vet[++i]);
 	  else if (!strcmp(arg_vet[i], "-pirgradual"))
