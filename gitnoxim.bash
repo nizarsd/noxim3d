@@ -11,3 +11,4 @@ git commit -m "$CM"
 
 # 3. Push to GitHub
 git push origin main
+echo "$CM"
