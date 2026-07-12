@@ -1,6 +1,6 @@
 TARGET_ARCH = linux64
 CC     = g++
-OPT    = -O2 # -O3
+OPT    = -O3 -march=native
 DEBUG  = -g
 OTHER  = -Wall -Wno-deprecated -std=c++14
 CFLAGS = $(OPT) $(OTHER)
