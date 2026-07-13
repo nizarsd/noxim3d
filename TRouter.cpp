@@ -81,6 +81,7 @@ bool actvity_flag=0;
 
 		// Incoming flit
 		// traffic_counter++;
+			if (TGlobalParams::traffic_bin > 0) rx_flit_counter++;  // gated: no overhead unless -trafficbin set
 		stats.power.Incoming();
 	      }
 	    }
@@ -110,6 +111,7 @@ bool actvity_flag=0;
 	    //  used_buffer_size[i].write(1);    // Initilize the cost function of DP
 	}
 	router_temp=25.0;   // INITIAL ROUTER TEMP
+		rx_flit_counter=0;  // per-router received-flit counter (see -trafficbin)
 	traffic_counter=0;  // for dw routing 
 	dw_level=0;
 	throt_level=1;	 // initial throttling level	
@@ -1181,7 +1183,7 @@ vector<int> TRouter::routingOddEven3D(const TRouteData& route_data)
 	    else
 	    	{
 	      	 if ((cz % 2 == 1) || (cz==sz))   //
-	 		directions=routingOddEven(current, source, destination);
+	 		    directions=routingOddEven(current, source, destination);
 				
   		 if ((dz % 2 == 1) || (ez != 1))
 		  	directions.push_back(DIRECTION_DOWN);
@@ -1191,12 +1193,12 @@ vector<int> TRouter::routingOddEven3D(const TRouteData& route_data)
 	  
 	  else   // z direction is -ve ( going up)
 		{
-		  // need xy-plane routing and the z plane is even	
-		directions.push_back(DIRECTION_UP);
+		 
+        if ((ex!=0 || ey!=0) &&  (cz % 2 == 0) )  
+            directions=routingOddEven(current, source, destination);
 
-	        if ((ex!=0 || ey!=0) &&  (cz % 2 == 0) )  
-			directions=routingOddEven(current, source, destination);
-		
+        // need xy-plane routing and the z plane is even	
+        directions.push_back(DIRECTION_UP);
 
 	        } // z direction is -ve
     } //ez==0
@@ -1251,7 +1253,7 @@ vector<int> TRouter::routingOddEven0(const TCoord& current,
 	    }
 	}
       else
-	{
+	{  
 	  directions.push_back(DIRECTION_NORTH);
 	  if (c1 % 2 == 0)
 	    {
@@ -1728,8 +1730,8 @@ vector<int> TRouter::routingOddEvenBalanced(const TRouteData& route_data)
     // unaligned + even plane -> in-plane ONLY; otherwise UP only
     if ((ex != 0 || ey != 0) && (cz % 2 == 0))
       directions = routingOddEven1(current, source, destination); // even plane: X-primary (column-wise)
-    else
-      directions.push_back(DIRECTION_UP);
+    
+    directions.push_back(DIRECTION_UP);
   }
 
   assert(directions.size() > 0);

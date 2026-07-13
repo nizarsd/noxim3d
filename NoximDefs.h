@@ -138,7 +138,8 @@ using namespace std;
 #define DEFAULT_NO_OF_SAMPLES		10	
 #define DPSIZE					    260
 #define DEFAULT_TCU_INTERVAL		500
-#define DEFAULT_DP_SETTLE_MULT		0
+#define DEFAULT_TRAFFIC_BIN		  0
+#define DEFAULT_DP_SETTLE_MULT	0
 #define DEFAULT_BW_THRESHOLD		1000
 
 //<Nizar>
@@ -172,6 +173,7 @@ struct TGlobalParams
   static float probability_of_retransmission;
   static int traffic_distribution;
   static char traffic_table_filename[128];
+  static char traffic_dump_file[128];   // rx-traffic CSV path (CLI: -trafficdump; default traffic_rx.csv)
   static int simulation_time;
   static int stats_warm_up_time;
   static int rnd_generator_seed;
@@ -185,6 +187,7 @@ struct TGlobalParams
   static int   token_ring;
   static int   no_of_samples;
   static int   tcu_interval;
+  static int   traffic_bin;       // traffic binning for traffic information per router
   static int   dp_settle_mult;   // settle window = dp_settle_mult * dp_pass (CLI: -dpsettle)
   static int   bw_threshold;
   

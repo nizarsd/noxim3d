@@ -197,6 +197,7 @@ SC_MODULE(TRouter)
    float router_temp; // added by Ra'ed
    int   dw_level;
    int traffic_counter;
+   int rx_flit_counter;   // per-router received-flit count; binned/dumped by TNoC::dumpTraffic (CLI: -trafficbin)
    
 	// was: int traffic_counter; <Nizar 2026)
 	int    channel_load[DIRECTIONS];      // accumulated occupancy per output channel

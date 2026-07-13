@@ -28,6 +28,7 @@
 //---------------------------------------------------------------------------
 
 #include <systemc.h>
+#include <fstream>
 #include "TTile.h"
 
 SC_MODULE(TNoC)
@@ -99,8 +100,12 @@ SC_MODULE(TNoC)
   // <Nizar>
   void		TAVT(double max_temp, TCoord pillar);
   void 		VT(int level, TCoord pillar);
-  void 		dy_dp_manage(); 
-  
+  void 		dy_dp_manage();
+  void 		dumpTraffic();          // per-router rx flit dump every -trafficbin cycles
+  void 		flushTraffic();         // flush the final (partial) bin so no flits are lost; call after sc_start
+  std::ofstream traffic_csv;        // opened lazily when traffic_bin > 0
+  int           last_traffic_stime = -1;  // guards the end-of-sim flush against a duplicate row
+
   // Global tables
   TGlobalRoutingTable grtable;
   TGlobalTrafficTable gttable;
@@ -131,6 +136,8 @@ SC_MODULE(TNoC)
    		sensitive << clock.pos();
   // Commnect to prevent from executing every cylce
   SC_METHOD(dy_dp_manage);
+        sensitive << clock.pos();
+  SC_METHOD(dumpTraffic);
         sensitive << clock.pos();
     // Build the Mesh
     buildMesh();

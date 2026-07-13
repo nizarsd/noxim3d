@@ -375,11 +375,14 @@ void parseCmdLine(int arg_num, char *arg_vet[])
 	TGlobalParams::bw_threshold = atoi(arg_vet[++i]);
 	  else if (!strcmp(arg_vet[i], "-pirgradual"))
 	TGlobalParams::pir_gradual = atoi(arg_vet[++i]);
-
-      else 
+  else if (!strcmp(arg_vet[i],"-trafficbin"))
+  TGlobalParams::traffic_bin = atoi(arg_vet[++i]);
+  else if (!strcmp(arg_vet[i],"-trafficdump"))
+  strcpy(TGlobalParams::traffic_dump_file, arg_vet[++i]);
+  else
       {
-	cerr << "Error: Invalid option: " << arg_vet[i] << endl;
-	exit(1);
+      cerr << "Error: Invalid option: " << arg_vet[i] << endl;
+      exit(1);
       }
     }
   }

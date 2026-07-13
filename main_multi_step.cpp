@@ -61,6 +61,7 @@ float TGlobalParams::packet_injection_rate            = DEFAULT_PACKET_INJECTION
 float TGlobalParams::probability_of_retransmission    = DEFAULT_PROBABILITY_OF_RETRANSMISSION;
 int   TGlobalParams::traffic_distribution             = DEFAULT_TRAFFIC_DISTRIBUTION;
 char  TGlobalParams::traffic_table_filename[128]      = DEFAULT_TRAFFIC_TABLE_FILENAME;
+char  TGlobalParams::traffic_dump_file[128]           = "traffic_rx.csv";
 int   TGlobalParams::simulation_time                  = DEFAULT_SIMULATION_TIME;
 int   TGlobalParams::stats_warm_up_time               = DEFAULT_STATS_WARM_UP_TIME;
 int   TGlobalParams::rnd_generator_seed               = time(NULL);
@@ -83,6 +84,7 @@ float TGlobalParams::min_counter		       = 0;
 // Modification made by Ra'ed in April 2010
 int   TGlobalParams::no_of_samples                    = DEFAULT_NO_OF_SAMPLES;
 int   TGlobalParams::tcu_interval                     = DEFAULT_TCU_INTERVAL;
+int   TGlobalParams::traffic_bin                      = DEFAULT_TRAFFIC_BIN;  // per-router rx binning (CLI: -trafficbin)
 int   TGlobalParams::bw_threshold                     = DEFAULT_BW_THRESHOLD;
         
  

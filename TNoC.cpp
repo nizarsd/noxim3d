@@ -367,6 +367,62 @@ for(int i=0; i<TGlobalParams::mesh_dim_x; i++)
 
 
 
+// Per-router received-flit dump. Dormant (bit-identical to baseline) unless
+// -trafficbin N is given; then every N cycles it writes one CSV row per node
+// (cycle,node,flits) and resets each counter so each row is per-bin throughput.
+// Run with N >= simulation_time for a single whole-run total (heatmap mode).
+void TNoC::dumpTraffic()
+{
+	if (TGlobalParams::traffic_bin <= 0) return;   // gated: off unless bin specified
+	if (reset.read()) return;
+
+	int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
+	if (stime < 0 || (stime % TGlobalParams::traffic_bin) != 0) return;
+
+	if (!traffic_csv.is_open()) {
+		traffic_csv.open(TGlobalParams::traffic_dump_file);
+		traffic_csv << "cycle,node,flits\n";
+	}
+
+	for (int z=0; z<TGlobalParams::mesh_dim_z; z++)
+		for (int y=0; y<TGlobalParams::mesh_dim_y; y++)
+			for (int x=0; x<TGlobalParams::mesh_dim_x; x++) {
+				TCoord c; c.x=x; c.y=y; c.z=z;
+				traffic_csv << stime << ',' << coord2Id(c) << ','
+				            << t[x][y][z]->r->rx_flit_counter << '\n';
+				t[x][y][z]->r->rx_flit_counter = 0;   // reset for next bin
+			}
+	traffic_csv.flush();
+	last_traffic_stime = stime;
+}
+
+// Flush the final partial bin: dumpTraffic only fires on bin boundaries, so
+// flits received after the last boundary would otherwise be dropped. Call once
+// from main() after sc_start returns (a timed sc_start does not invoke the
+// SystemC end_of_simulation callback).
+void TNoC::flushTraffic()
+{
+	if (TGlobalParams::traffic_bin <= 0) return;
+
+	int stime = (int)(sc_time_stamp().to_double()/1000 - DEFAULT_RESET_TIME);
+	if (stime == last_traffic_stime) { if (traffic_csv.is_open()) traffic_csv.close(); return; }
+
+	if (!traffic_csv.is_open()) {
+		traffic_csv.open(TGlobalParams::traffic_dump_file);
+		traffic_csv << "cycle,node,flits\n";
+	}
+	for (int z=0; z<TGlobalParams::mesh_dim_z; z++)
+		for (int y=0; y<TGlobalParams::mesh_dim_y; y++)
+			for (int x=0; x<TGlobalParams::mesh_dim_x; x++) {
+				TCoord c; c.x=x; c.y=y; c.z=z;
+				traffic_csv << stime << ',' << coord2Id(c) << ','
+				            << t[x][y][z]->r->rx_flit_counter << '\n';
+				t[x][y][z]->r->rx_flit_counter = 0;
+			}
+	traffic_csv.flush();
+	traffic_csv.close();
+}
+
 void TNoC::dy_dp_manage()
 {
 	int dx=TGlobalParams::mesh_dim_x;
