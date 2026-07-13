@@ -17,6 +17,27 @@ with mesh diameter within a parity class, and X/Y parity governs past-knee behav
 **See [FINDINGS.md](FINDINGS.md) for the full DP-vs-BL results, method, and open items.**
 (The older `stage1-log.txt` is superseded by FINDINGS.md.)
 
+## Traffic injection (Stage 2, in progress)
+
+DNN trace generation (Stage 2 of the execution plan) surfaced a format mismatch: the
+project proposal assumed a per-packet flit-level trace format, but the actual traffic
+input mechanism ([`TGlobalTrafficTable`](TGlobalTrafficTable.cpp)) is a **statistical**
+descriptor table — rows of `src dst pir por t_on t_off t_period` — consumed via
+per-cycle Bernoulli draws in `TProcessingElement::txProcess` against a cumulative PIR,
+not literal per-packet replay. Built-in `TRAFFIC_RANDOM` (uniform destination, global
+PIR, whole-run only — not phase-switchable) is also available as a distribution
+alongside `TRAFFIC_TABLE_BASED` ([`NoximDefs.h`](NoximDefs.h)).
+
+**Open design question:** profiled DNN traffic (PyTorch-hook output) is a concrete
+sequence of per-packet events (exact src/dst/timing per layer), which the statistical
+table can only approximate (piecewise-constant PIR over `t_on`/`t_off` windows). Before
+writing the Stage 2 converter, decide between:
+  (a) approximate DNN traces as statistical table rows (lossy, no simulator changes), or
+  (b) add a new trace-replay traffic mode to Noxim (e.g. a new `TRAFFIC_*` distribution
+      that reads an explicit per-node event list) to preserve trace fidelity.
+
+Not yet decided or implemented — logged here before Stage 2 code is written.
+
 ## Correctness & performance
 
 - **odd-even-balanced + DP legality** (`a698e05`): DP's turn legality

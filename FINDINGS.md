@@ -116,6 +116,54 @@ At low PIR both policies behave similarly; DP can be marginally *worse* (its
 coarser per-cycle direction updates cost a few cycles of latency with no
 congestion to route around). DP only pays off from the knee onward.
 
+## Vertical scaling (Z series)
+
+Does increasing **Z** (vertical depth) help DP the way increasing X/Y does? Test:
+fix X=Y=5 (odd), raise Z. 5×5×5 has diameter 12 — the *same* diameter as planar 6×6×3.
+
+| mesh | diam | Z parity | peak DP benefit | quality |
+|------|------|----------|-----------------|---------|
+| 5×5×5 | 12 | odd | **+70.6%** @0.014 | fine, 5-seed |
+
+- **Vertical ≈ planar for DP's peak:** 5×5×5 (+70.6%) ≈ 6×6×3 (+68.2%) at equal
+  diameter — diameter drives the peak regardless of *which* dimension supplies it
+  (diameter hypothesis in dimension-agnostic form). Node counts differ (125 vs 108),
+  so the cross-comparison is interpretive; the 5×5×Z series itself is the clean control.
+- **Sharp-peak Z signature (lesson):** the 5×5×5 knee peak is very narrow. The coarse
+  1-seed grid (0.012/0.015) stepped over it (read +17% then ~0%) and *mis*-suggested
+  "Z suppresses DP"; only the fine 0.001-spaced 5-seed sweep revealed +70.6% at 0.014.
+  Vertical congestion transitions abruptly — always fine-sweep in Z.
+- Past-knee behaviour of 5×5×5 (odd X/Y) not yet fully mapped — open.
+
+## DP settle window (`-dpsettle`) — less settle is better
+
+`dp_settle` is the idle "hold" phase where DP routes on a frozen converged field
+before re-probing/reconfiguring. Now runtime-tunable: **`-dpsettle N`** →
+settle = N·dp_pass, dp_cycle = (1+N)·dp_pass (align `-cinterval` to dp_cycle).
+**Default is now 0.**
+
+DP-vs-BL delay reduction at the knee, by settle multiple:
+
+| settle k | 3×3×3 @0.05 | 5×5×5 @0.014 |
+|----------|-------------|-------------|
+| **0** | **+28.8%** | **+74.0%** |
+| 1 (old default) | +16.3% | +72.1% |
+| 2 | +14.2% | — |
+| 3 | −30.0% | — |
+| 4 | −42.9% | — |
+
+- **`settle=0` (continuous reconvergence) is best-or-tied everywhere tested; more
+  settle only degrades DP** (it routes on an increasingly stale field).
+- **Benefit is size-dependent:** small/fast meshes gain a lot (3×3×3 ~doubles the
+  reduction), large meshes marginal (5×5×5 +1.9pp). Freshness matters most when
+  congestion mixes fast relative to the converge sweep.
+- **Implication:** the size/parity/Z results above (all run at settle=1) *understate*
+  DP, most at the small end. Large-mesh trends move <2pp, so the parity/Z conclusions
+  still hold — the small end just nudges up.
+- **Not `CINTERVAL`:** that sets the congestion-sampling period (`cost_to_go`), not the
+  reconfigure cadence. Settle lives in the compiled `dp_cycle()/dp_pass()/dp_settle()`
+  ([NoximDefs.h](NoximDefs.h)); see [PERFORMANCE.md](PERFORMANCE.md).
+
 ## Open items
 
 - **7×7×3 peak is coarse-only** (+82.4%) — fine-sweep 0.013–0.016 to confirm.
@@ -128,5 +176,7 @@ congestion to route around). DP only pays off from the knee onward.
 
 ## Log
 
-- 4×4×3, 5×5×3, 6×6×3, 7×7×3, 8×8×3 swept (Z=3). Raw CSVs in `results_knee_*`
-  (gitignored — regenerate). Peaks/knees as tabulated above.
+- Size × parity (Z=3): 4×4×3, 5×5×3, 6×6×3, 7×7×3, 8×8×3.
+- Z series: 5×5×5 (diameter 12, vs planar 6×6×3).
+- Settle sweeps: 3×3×3 and 5×5×5 at the knee (k=0..4) → `settle=0` best; default set to 0.
+- Raw CSVs in `results_knee_*` (gitignored — regenerate). Peaks/knees as tabulated above.
