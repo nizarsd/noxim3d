@@ -1165,7 +1165,7 @@ vector<int> TRouter::routingOddEven3D(const TRouteData& route_data)
    //bool better_diversity =(((cz % 2==0)  && ex>ey) || ((cz%2==1) && ex<ey));
    
 // for flits moving in the z direction source xy is the xy of the xy plane enetry point 
-    if ((dir_in ==DIRECTION_UP) || (dir_in ==DIRECTION_DOWN))
+  if ((dir_in ==DIRECTION_UP) || (dir_in ==DIRECTION_DOWN))
 	{
 	source.x=current.x;
 	source.y=current.y;
@@ -1175,33 +1175,39 @@ vector<int> TRouter::routingOddEven3D(const TRouteData& route_data)
 		directions=routingOddEven(current, source, destination);
 
   else
-    {
+  {
 	  if (ez > 0)   // z direction is +ve (going down)
-	    {
-		if ((ex==0) && (ey == 0))  // at the xy of destination 
-			directions.push_back(DIRECTION_DOWN);
-	    else
-	    	{
-	      	 if ((cz % 2 == 1) || (cz==sz))   //
-	 		    directions=routingOddEven(current, source, destination);
-				
-  		 if ((dz % 2 == 1) || (ez != 1))
-		  	directions.push_back(DIRECTION_DOWN);
-		}
+    {
+      if ((ex==0) && (ey == 0))  // at the xy of destination 
+        directions.push_back(DIRECTION_DOWN);
+        else
+        { // Going down, cannot ener an even plane, (cz=cz does not mean entry)
+          if ((cz % 2 == 1) || (cz==sz))   
+            directions=routingOddEven(current, source, destination);
+          
+            // destination z is odd or not at the last z plane to go down because if last z, 
+          // and dz is even entering an even plane will be needed, which is not allowed
+          // so stay in the odd z plane because you are allowed to leave once you reach your dest x y coord 
+          if ((dz % 2 == 1) || (ez != 1))  
+            directions.push_back(DIRECTION_DOWN);
+        }
 		
-	    } // z direction is +ve
+    } // z direction is +ve
 	  
-	  else   // z direction is -ve ( going up)
-		{
-		 
-        if ((ex!=0 || ey!=0) &&  (cz % 2 == 0) )  
+	  else   // z direction is -ve ( going up), // Going up you cannot leave an odd plane
+		{ 
+      if (ex==0 && ey==0)
+         directions.push_back(DIRECTION_UP);
+      else
+      {   
+      if (cz % 2 == 0)  // you can do planer routing in even planes (dz==cz alraedy covered, ez=0)
             directions=routingOddEven(current, source, destination);
 
-        // need xy-plane routing and the z plane is even	
+        //and okay to leave an even plane, for odd this is your only option 	
         directions.push_back(DIRECTION_UP);
-
-	        } // z direction is -ve
-    } //ez==0
+      }
+	  } // z direction is -ve
+  } //ez==0
 
 assert (directions.size()>0);
 return directions;  
@@ -1724,16 +1730,19 @@ vector<int> TRouter::routingOddEvenBalanced(const TRouteData& route_data)
         directions.push_back(DIRECTION_DOWN);
     }
   }
-  else               // ez < 0, going up
+  else   // ez < 0, going up
   {
-    // exclusivity preserved from the published algorithm:
-    // unaligned + even plane -> in-plane ONLY; otherwise UP only
-    if ((ex != 0 || ey != 0) && (cz % 2 == 0))
-      directions = routingOddEven1(current, source, destination); // even plane: X-primary (column-wise)
-    
-    directions.push_back(DIRECTION_UP);
-  }
 
+    if ((ex == 0) && (ey == 0))
+      directions.push_back(DIRECTION_UP);        // aligned: UP only
+    else
+    {
+      if (cz % 2 == 0)
+        directions = routingOddEven1(current, source, destination); // even plane: X-primary (column-wise)
+      
+      directions.push_back(DIRECTION_UP);
+    }
+  }
   assert(directions.size() > 0);
   return directions;
 }
