@@ -334,12 +334,11 @@ bool DPNode::can_turnOddEven(int dir_in, int dir_out, int dst_id)
              * Real 3D OE had:
              *     (cz % 2 == 1) || (cz == sz)
              *
-             * DP does not know true source plane, so remove cz == sz.
+             * DP does not know true source plane, so it is inferred from the current plane. This is a conservative approximation.
              */
-            if (cz % 2 == 1)
+            if (cz % 2 == 1 || dir_in != DIRECTION_UP)
                 directions = routingOddEvenDPStrict(current, destination);
-
-            if ((dz % 2 == 1) || (ez != 1))
+            else if ((dz % 2 == 1) || (ez > 1))
                 directions.push_back(DIRECTION_DOWN);
         }
     }
@@ -1152,7 +1151,8 @@ bool DPNode::can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id)
     int ey = destination.y - current.y;
     int ez = dz - cz;
 
-    if (ez == 0) {
+    if (ez == 0) 
+    {
         /*
          * Same-plane movement:
          * even z-plane => OE0
@@ -1176,10 +1176,15 @@ bool DPNode::can_turnOddEvenBalanced(int dir_in, int dir_out, int dst_id)
              *
              * Odd z planes use OE0: Y-primary / row-wise.
              */
-            if (cz % 2 == 1)
-                directions = routingOddEven0_DPStrict(current, destination);
-
-            if ((dz % 2 == 1) || (ez != 1))
+            if (cz % 2 == 1 || dir_in!= DIRECTION_UP)
+            {
+              if (cz % 2 == 0)
+                  directions = routingOddEven1_DPStrict(current, destination);
+              else
+                  directions = routingOddEven0_DPStrict(current, destination);
+            }
+            else
+            if ((dz % 2 == 1) || (ez > 1))
                 directions.push_back(DIRECTION_DOWN);
         }
     }

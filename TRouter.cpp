@@ -1726,22 +1726,19 @@ vector<int> TRouter::routingOddEvenBalanced(const TRouteData& route_data)
         else
           directions = routingOddEven0(current, source, destination);
       }
-      if ((dz % 2 == 1) || (ez != 1))            // descend under published condition
+      else  // making palar and vertical are mutually exclusive is shown to give btter performance than allowing both at the same time  
+      if ((dz % 2 == 1) || (ez > 1))            // descend under published condition
         directions.push_back(DIRECTION_DOWN);
     }
   }
   else   // ez < 0, going up
   {
 
-    if ((ex == 0) && (ey == 0))
-      directions.push_back(DIRECTION_UP);        // aligned: UP only
-    else
-    {
-      if (cz % 2 == 0)
-        directions = routingOddEven1(current, source, destination); // even plane: X-primary (column-wise)
-      
+    if (((ex != 0) || (ey != 0)) & (cz % 2 == 0))
+      directions = routingOddEven1(current, source, destination); // even plane: X-primary (column-wise)
+    else  
       directions.push_back(DIRECTION_UP);
-    }
+    
   }
   assert(directions.size() > 0);
   return directions;
