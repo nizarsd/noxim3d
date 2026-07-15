@@ -91,6 +91,31 @@ Not yet implemented — logged here before Stage 2 code is written.
 - **Parallel sweeps:** [`noximrun_buffer_sweep_parallel.bash`](noximrun_buffer_sweep_parallel.bash)
   (`JOBS` knob; deterministic → identical to sequential).
 - **Limit:** `DPSIZE = 260` caps mesh size; > 260 nodes overflow DP arrays (raise & rebuild).
+- **DP settle window** (`-dpsettle N`, runtime; default 0): settle = N·dp_pass. Finding —
+  `settle=0` (continuous reconvergence, freshest field) is best-or-tied; more settle only
+  degrades DP. Big win on small/fast meshes, marginal on large. See FINDINGS.md settle section.
+
+### Idea (not implemented): faster DP clock to cut convergence time
+
+`dp_pass = dp_dwell · num_dst` NoC cycles grows with mesh size (∝ nodes·diameter) — the
+destination-multiplexing bottleneck. `dp_clock` is **already a separate clock**
+([main.cpp](main.cpp), currently `1 SC_NS` = NoC clock), so DP can run faster than the NoC.
+Running it k× (4–6×) cuts convergence ~k× — a **constant factor** (doesn't change the
+nodes·diameter scaling; approaches k for large diameter, less for tiny meshes where the
+`+3` margin dominates). Relevant to later **RL stages**: faster reconfiguration = fresher
+cost fields (complements the `settle=0` result).
+
+- **Design A (recommended, minimal, no clock-domain crossing):** a faster `dp_clock` already
+  propagates k cost-hops per NoC cycle (each dp edge = one hop via `dp_rx`), so just shrink
+  `dp_dwell()` to ~`ceil(diameter/k)+3`. `dpProcess` and `routing_directionsUpdater` stay
+  unchanged — both key their phase off `sc_time_stamp`, so the two clock domains remain
+  coordinated automatically. ~3 lines (dp_clock period in main.cpp + dwell formula in
+  NoximDefs.h). Then re-verify the publish margin (`phase%dwell==dwell-2` must be
+  post-convergence) and realign `CINTERVAL`/sweep timing to the new `dp_cycle`.
+- **Design B (tick-based counter):** re-base `dpProcess` on a `dp_clock`-tick counter instead
+  of `sc_time_stamp`. Cleaner-sounding but *worse* — it breaks the free sim-time coordination
+  and forces an explicit CDC handshake (DP exposes `dp_dir`+dst+valid, router latches on its
+  own clock, DP must hold each config stable ≥1 NoC cycle). Avoid unless full decoupling is needed.
 
 **See [PERFORMANCE.md](PERFORMANCE.md) for profiling, fixes, and validation.**
 
