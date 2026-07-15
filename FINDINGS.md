@@ -164,8 +164,85 @@ DP-vs-BL delay reduction at the knee, by settle multiple:
   reconfigure cadence. Settle lives in the compiled `dp_cycle()/dp_pass()/dp_settle()`
   ([NoximDefs.h](NoximDefs.h)); see [PERFORMANCE.md](PERFORMANCE.md).
 
+## Routing-variant study: turn exclusivity ↔ saturation throughput
+
+Three `oddevenbalanced` (OEB) variants tested, **all deadlock-free** (each is a turn-set
+subset/superset of the published baseline), differing only in vertical↔planar turn
+**exclusivity** in [`routingOddEvenBalanced`](TRouter.cpp):
+
+| variant | up branch | down branch | planar/vertical coupling |
+|---------|-----------|-------------|--------------------------|
+| **baseline** (published) | exclusive | coexisting | medium (asymmetric) |
+| **modified** (UP-always) | coexisting | coexisting | **max** |
+| **modified2** | exclusive | exclusive | **min** |
+
+**Coupling governs saturation throughput, monotonically.** transpose1, 4×4×3, PIR 0.035,
+settle=0, absolute **BL delay: modified 290 > baseline 85 > modified2 23** (DP: 135 / 69 / 25).
+Less planar↔vertical coexistence ⇒ less flow coupling ⇒ shallower back-pressure trees ⇒ knee
+pushed to higher PIR. modified collapses the knee (11–24× worse than baseline on random @0.041);
+modified2 pushes it far out (delay still 102 at 0.045 where baseline is 528, modified 1753).
+
+**DP-vs-BL % is misleading in isolation.** modified's headline "+53% DP reduction" came from
+degrading BL faster than DP — *both* were 2–3× slower than baseline absolutely. modified2 shows
+*negative* DP-vs-BL at these PIRs because it is now **below-knee** there. Lesson: quote **absolute
+delay** and re-locate each routing's **own knee** before trusting a DP reduction %.
+
+**Tension — best routing ≠ best DP substrate.** modified2 (min coupling) is the fastest routing
+but strips the path diversity DP exploits, so DP has little to optimize (went negative). "Fastest
+routing" and "largest DP-vs-BL gap" diverge — directly relevant to choosing routing for DNN
+traffic ([STAGE2.md](STAGE2.md)).
+
+**Scope:** measured on **4×4×3 + transpose1 only** (random run lost to a script typo). OEB is
+parity/size dependent (above), so generality is unverified. Binaries on disk (gitignored):
+`noxim`=modified2, `noxim_ref`=modified, `noxim_base`=baseline. The DP legality mirror
+`can_turnOddEvenBalanced` ([DPNode.cpp](DPNode.cpp)) matches the router modulo the documented
+source-independence terms (`cz==sz`/`c0==s0`/`c1==s1` dropped/proxied).
+
+### modified2 across sizes — knee shifts right, DP benefit is size-dependent
+
+Knee sweep of modified2 vs the FINDINGS baseline (transpose1, buffer 16, seeds {2,6,10},
+`-dpsettle 1`, DP-aware timing per mesh). modified2's knee moves to **higher PIR** on every mesh,
+and its DP-vs-BL peak is **size-dependent** (partial — 8×8×3 / 5×5×5 pending):
+
+| mesh | baseline peak | modified2 peak (settle=1) | note |
+|------|--------------|---------------------------|------|
+| 4×4×3 | +33.1% @0.036 | **negative everywhere** | DP benefit killed (mesh too small) |
+| 5×5×3 | +64% @0.024 | +64.5% @0.030 | preserved, knee shifted right |
+| 6×6×3 | +68.2% @0.021 | ≥+20% @0.026 (undersampled) | grid gap 0.026–0.032 misses the peak |
+| 7×7×3 | +82.4% @0.015 | +74.4% @0.021 | mostly preserved, knee shifted |
+
+**"modified2 kills DP's benefit" (from 4×4×3 alone) does NOT generalize** — it holds only on the
+*smallest* mesh; on larger meshes DP's win is preserved, just relocated to a higher knee. Good for
+DNN traffic (large meshes). Caveat: the extended PIR grid jumped past the shifted knee (gap
+~0.026–0.032), so mid-size peaks here are **lower bounds** pending infill.
+
+### settle under modified2 (5×5×3) — settle=0 best, but match the window
+
+Clean settle comparison, **matched sim window** (sim=39000 for both; cinterval aligned per settle:
+settle=0→975, settle=1→1950):
+
+| | peak red% @0.030 | BL delay | DP delay |
+|---|---|---|---|
+| settle=1 | +64.5% | 343.8 | 121.9 |
+| **settle=0** | **+71.5%** | 343.8 (identical) | **98.0** |
+
+**settle=0 wins by ~7 pp** — BL is identical (bufferlevel ignores settle); settle=0's DP delay is
+~20% lower (fresher congestion field from more frequent reconfiguration). Confirms "settle=0 best"
+for modified2. **Methodology caveat:** compare settles over the **same sim window** — settle=0's
+FINDINGS-native timing gives it *half* the sim (dp_cycle halves), deflating its BL and fabricating
+a false settle=1 "win" (the raw native-timing numbers showed +44% vs +64%, an artifact).
+modified2+settle=0 (+71.5%) also **exceeds** the baseline 5×5×3 peak (+64%, settle=1) — a genuine
+DP gain on this mesh. Consequence: the settle=1 knee sweep above **understates** modified2 by
+~5–7 pp/mesh.
+
 ## Open items
 
+- **Routing-variant generality** — modified2 (both-exclusive OEB) only tested on transpose1
+  4×4×3; sweep {random, transpose, hotspot, bit-reversal} × {odd/even, Z-heavy meshes} to each
+  routing's **own knee**, reporting absolute delay **and** DP-vs-BL, before adopting a routing
+  for DNN traffic. Decide the target metric first (latency/throughput vs DP gap).
+- **Finish the modified2 knee sweep** — 8×8×3 + 5×5×5 pending; re-run at **settle=0** (true
+  numbers, ~5–7 pp higher) and **infill PIR 0.026–0.032** to pin the mid-size peaks (6×6×3, 7×7×3).
 - **7×7×3 peak is coarse-only** (+82.4%) — fine-sweep 0.013–0.016 to confirm.
 - **Deep-saturation reversal point of odd meshes** — 5×5×3 only swept to 1.2×
   knee; push further to locate where it finally reverses.

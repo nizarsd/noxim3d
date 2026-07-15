@@ -28,15 +28,57 @@ not literal per-packet replay. Built-in `TRAFFIC_RANDOM` (uniform destination, g
 PIR, whole-run only — not phase-switchable) is also available as a distribution
 alongside `TRAFFIC_TABLE_BASED` ([`NoximDefs.h`](NoximDefs.h)).
 
-**Open design question:** profiled DNN traffic (PyTorch-hook output) is a concrete
-sequence of per-packet events (exact src/dst/timing per layer), which the statistical
-table can only approximate (piecewise-constant PIR over `t_on`/`t_off` windows). Before
-writing the Stage 2 converter, decide between:
-  (a) approximate DNN traces as statistical table rows (lossy, no simulator changes), or
-  (b) add a new trace-replay traffic mode to Noxim (e.g. a new `TRAFFIC_*` distribution
-      that reads an explicit per-node event list) to preserve trace fidelity.
+### Two hard limits of the table mechanism (code-as-written)
 
-Not yet decided or implemented — logged here before Stage 2 code is written.
+1. **Packet size is never read from the table.** `canShot()` calls
+   `packet.make(local_id, dst, now, getRandomSize())` — the profiled per-layer output
+   volume cannot be expressed at any `pir`/window setting. The format has no size column.
+2. **One destination per source per cycle.** `getCumulativePirPor()` picks a single dst
+   by weighted random draw among rows active that cycle, so a source cannot fan out to
+   two dsts simultaneously (e.g. a ResNet skip connection firing to both the next
+   sequential tile and the merge tile).
+
+Timing itself is *not* a blocker: a narrow window (`t_on=C-1, t_off=C+1, pir=1.0`) forces
+near-deterministic single-shot firing at cycle C, with `t_period` = inference-pass length
+for repeats.
+
+### Three candidate approaches
+
+- **(a) Statistical approximation** — DNN traffic as ordinary table rows. Lossy (no real
+  size, no fan-out), but **zero simulator changes**.
+- **(b-lite) Table + fixed packet size** — keep the whole table mechanism; change
+  `canShot()` to read a new size column instead of `getRandomSize()` (~5 lines + parser
+  field). Carries real per-layer size. Still approximate: `pir`×Bernoulli means *packet
+  count* and *exact cycle* within the window remain random (total volume is an
+  expectation, not exact), size is quantised to **flits** (profiled `comm_bytes` ÷ flit
+  size, integer-rounded), and the one-dst-per-cycle limit still applies.
+- **(b-full) Dependency-gated dataflow firing** — per-PE state machine: track required
+  inputs, fire only once all have *actually arrived* in-sim, so congestion delays
+  propagate downstream. The architecturally correct model for a layer DAG, and the only
+  option where routing improvements show up in true end-to-end inference latency. Large
+  `TProcessingElement` change.
+
+### Model-by-model fit
+
+| Model | Fit under (b-lite) | Notes |
+|-------|--------------------|-------|
+| VGG-16 | Full fit | Purely sequential, one src→one dst per layer; FC burst is just high `pir` over a window. No structural gap. |
+| ResNet-50 | Mostly fits | Skip-connection fan-out served by weighted draw, not guaranteed simultaneous — OK for volume, imperfect for synchronised burst. |
+| Transformer | Poor fit | Attention is all-to-all/collective in one window; b-lite scatters it as pairwise traffic. Needs `TRAFFIC_RANDOM` or ring/tree collective rows — a separate modelling path. |
+
+**(b-full) fixes the CNN cases (ResNet, VGG) exactly, but does *not* dissolve the
+transformer problem** — attention is a collective, not a DAG dependency, so it still needs
+explicit all-to-all edges (O(N²) rows) or a collective primitive either way.
+
+### Current lean (not yet committed)
+
+**(b-lite) for CNNs now** — unblocks Stage 2/3 for ResNet-50 + VGG-16 at ~5 lines of
+change, consistent with Stage 2's "get something running" goal. **Defer (b-full)** until
+Stage 5/6 evidence shows arrival-coupled timing is actually needed to demonstrate the RL
+agent's benefit. **Transformer handled separately** as a synthetic pattern regardless of
+which option is chosen.
+
+Not yet implemented — logged here before Stage 2 code is written.
 
 ## Correctness & performance
 

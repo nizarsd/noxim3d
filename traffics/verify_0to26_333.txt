@@ -1,0 +1,2 @@
+% src dst pir por t_on t_off t_period
+0 26 0.02 0.02 0 2000 4000
